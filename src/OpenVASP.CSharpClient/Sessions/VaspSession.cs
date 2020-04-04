@@ -1,19 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using OpenVASP.CSharpClient;
 using OpenVASP.CSharpClient.Delegates;
 using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
-using OpenVASP.CSharpClient.Sessions;
+using OpenVASP.CSharpClient.Persistence;
 using OpenVASP.CSharpClient.Utils;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 
-namespace OpenVASP.Tests.Client.Sessions
+namespace OpenVASP.CSharpClient.Sessions
 {
     //TODO: Add thread safety + state machine
     public abstract class VaspSession : IDisposable
@@ -39,6 +36,7 @@ namespace OpenVASP.Tests.Client.Sessions
 
         private bool _isActivated;
         private ProducerConsumerQueue _producerConsumerQueue;
+        private MessageHandlerResolver _messageHandlerResolver;
 
         public event SessionTermination OnSessionTermination;
 
@@ -50,7 +48,8 @@ namespace OpenVASP.Tests.Client.Sessions
             string privateSigningKey,
             IWhisperRpc whisperRpc,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            IMessageRepository messageRepository)
         {
             this._vaspInfo = vaspInfo;
             this._vaspContractInfo = vaspContractInfo;
@@ -75,7 +74,7 @@ namespace OpenVASP.Tests.Client.Sessions
             get { return _sessionTopic; }
         }
 
-        protected void StartTopicMonitoring()
+        private void StartTopicMonitoring()
         {
             lock (_lock)
             {
@@ -85,12 +84,12 @@ namespace OpenVASP.Tests.Client.Sessions
                     this._isActivated = true;
                     var cancellationToken = _cancellationTokenSource.Token;
 
-                    _task = taskFactory.StartNew(async (_) =>
+                    _task = Task.Run(async () =>
                     {
                         _sharedSymKeyId = await _whisperRpc.RegisterSymKeyAsync(_sharedKey);
                         string messageFilter = await _whisperRpc.CreateMessageFilterAsync(topicHex: _sessionTopic, symKeyId: _sharedSymKeyId);
-                        var messageHandlerResolver = _messageHandlerResolverBuilder.Build();
-                        this._producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
+                        _messageHandlerResolver = _messageHandlerResolverBuilder.Build();
+                        this._producerConsumerQueue = new ProducerConsumerQueue(_messageHandlerResolver, cancellationToken);
 
                         do
                         {
@@ -111,11 +110,12 @@ namespace OpenVASP.Tests.Client.Sessions
                                 continue;
                             }
 
+                            //TODO: Enhance polling strategy
                             //Poll whisper each 5 sec for new messages
                             await Task.Delay(5000, cancellationToken);
 
                         } while (!cancellationToken.IsCancellationRequested);
-                    }, cancellationToken, TaskCreationOptions.LongRunning);
+                    }, cancellationToken);
                 }
                 else
                 {
@@ -136,6 +136,7 @@ namespace OpenVASP.Tests.Client.Sessions
             try
             {
                 _task.Wait();
+                _producerConsumerQueue.Wait();
             }
             catch (Exception e)
             {
@@ -166,6 +167,8 @@ namespace OpenVASP.Tests.Client.Sessions
                     OnSessionTermination -= (SessionTermination)item;
                 }
             }
+
+            Wait();
 
             _task?.Dispose();
             _producerConsumerQueue?.Dispose();

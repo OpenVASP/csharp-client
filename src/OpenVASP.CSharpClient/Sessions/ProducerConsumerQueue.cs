@@ -15,7 +15,8 @@ namespace OpenVASP.CSharpClient.Sessions
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly AutoResetEvent _manual = new AutoResetEvent(false);
-
+        
+        private bool _isInCancellation = false;
         private Task _queueWorker;
 
         public ProducerConsumerQueue(MessageHandlerResolver messageHandlerResolver, CancellationToken cancellationToken)
@@ -30,54 +31,76 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             _semaphore.Wait();
 
-            _bufferQueue.Enqueue(message);
+            // Skip new messages if in disposing state
+            if (!_isInCancellation)
+                _bufferQueue.Enqueue(message);
 
             _manual.Set();
 
             _semaphore.Release();
         }
 
+        public void Wait()
+        {
+            try
+            {
+                _queueWorker.Wait();
+            }
+            catch (Exception e)
+            {
+            }
+        }
+
         private void StartWorker()
         {
             var cancellationToken = _cancellationTokenSource.Token;
-            var factory = new TaskFactory();
-            _queueWorker = factory.StartNew(async (_) =>
+            // ReSharper disable once MethodSupportsCancellation
+            _queueWorker = Task.Run(async () => await DoWorkAsync(cancellationToken));
+        }
+
+        private async Task DoWorkAsync(CancellationToken cancellationToken)
+        {
+            do
             {
-                do
+                _manual.WaitOne();
+
+                await ProcessMessages(default);
+            } while (!cancellationToken.IsCancellationRequested);
+
+            // TODO: When disposing producer consumer queue 
+            await ProcessMessages(default);
+        }
+
+        private async Task ProcessMessages(CancellationToken cancellationToken)
+        {
+            while (_bufferQueue.Any())
+            {
+                try
                 {
-                    _manual.WaitOne();
+                    await _semaphore.WaitAsync();
+                    var item = _bufferQueue.Dequeue();
+                    var handlers = _messageHandlerResolver.ResolveMessageHandlers(item.GetType());
 
-                    while (_bufferQueue.Any())
+                    foreach (var handler in handlers)
                     {
-                        try
-                        {
-                            await _semaphore.WaitAsync();
-                            var item = _bufferQueue.Dequeue();
-                            var handlers = _messageHandlerResolver.ResolveMessageHandlers(item.GetType());
-
-                            foreach (var handler in handlers)
-                            {
-                                await handler.HandleMessageAsync(item, cancellationToken);
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            //TODO: Add logging here
-                            throw;
-                        }
-                        finally
-                        {
-                            _semaphore.Release();
-                        }
+                        await handler.HandleMessageAsync(item, cancellationToken);
                     }
-
-                } while (!cancellationToken.IsCancellationRequested);
-
-            }, cancellationToken, TaskCreationOptions.LongRunning);
+                }
+                catch (Exception e)
+                {
+                    //TODO: Add logging here
+                    throw;
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+            }
         }
 
         public void Dispose()
         {
+            _isInCancellation = true;
             _cancellationTokenSource.Cancel();
             _manual.Set();
 
@@ -91,9 +114,10 @@ namespace OpenVASP.CSharpClient.Sessions
                 // ignored
             }
 
+            _queueWorker?.Dispose();
             _semaphore?.Dispose();
             _manual?.Dispose();
-            _queueWorker?.Dispose();
+            _cancellationTokenSource?.Dispose();
         }
     }
 }

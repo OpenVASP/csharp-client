@@ -8,11 +8,11 @@ using OpenVASP.CSharpClient.Cryptography;
 using OpenVASP.CSharpClient.Delegates;
 using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
+using OpenVASP.CSharpClient.Persistence;
 using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient
 {
@@ -30,7 +30,8 @@ namespace OpenVASP.CSharpClient
         private readonly IEnsProvider _ensProvider;
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
-        
+        private readonly IMessageRepository _messageRepository;
+
         private readonly ConcurrentDictionary<string, BeneficiarySession> _beneficiarySessionsDict = new ConcurrentDictionary<string, BeneficiarySession>();
         private readonly ConcurrentDictionary<string, OriginatorSession> _originatorSessionsDict = new ConcurrentDictionary<string, OriginatorSession>();
 
@@ -54,7 +55,8 @@ namespace OpenVASP.CSharpClient
             IWhisperRpc nodeClientWhisperRpc,
             IEnsProvider ensProvider,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            IMessageRepository messageRepository)
         {
             this._handshakeKey = handshakeKey;
             this._signatureKey = signatureHexKey;
@@ -66,6 +68,7 @@ namespace OpenVASP.CSharpClient
             this._ensProvider = ensProvider;
             this._transportClient = transportClient;
             this._signService = signService;
+            this._messageRepository = messageRepository;
         }
 
         public VaspInformation VaspInfo { get; }
@@ -135,6 +138,8 @@ namespace OpenVASP.CSharpClient
                                         this._handshakeKey.GenerateSharedSecretHex(sessionRequestMessage.HandShake
                                             .EcdhPubKey);
 
+                                    await _messageRepository.SaveMessageAsync(sessionRequestMessage);
+
                                     var session = new BeneficiarySession(
                                         originatorVaspContractInfo,
                                         this.VaspInfo,
@@ -146,10 +151,12 @@ namespace OpenVASP.CSharpClient
                                         this._whisperRpc,
                                         messageHandler,
                                         _transportClient,
-                                        _signService);
+                                        _signService,
+                                        _messageRepository);
 
                                     this.NotifySessionCreated(session);
                                     session.OnSessionTermination += this.ProcessSessionTermination;
+
                                     if (_beneficiarySessionsDict.TryAdd(session.SessionId, session))
                                     {
                                         await session.StartAsync();
@@ -216,7 +223,8 @@ namespace OpenVASP.CSharpClient
                 this._signatureKey,
                 _whisperRpc,
                 _transportClient,
-                _signService);
+                _signService,
+                _messageRepository);
 
             if (_originatorSessionsDict.TryAdd(session.SessionId, session))
             {
@@ -243,7 +251,8 @@ namespace OpenVASP.CSharpClient
             IWhisperRpc nodeClientWhisperRpc,
             IEnsProvider ensProvider,
             ISignService signService,
-            ITransportClient transportClient)
+            ITransportClient transportClient,
+            IMessageRepository messageRepository)
         {
             var handshakeKey = ECDH_Key.ImportKey(handshakePrivateKeyHex);
 
@@ -256,7 +265,8 @@ namespace OpenVASP.CSharpClient
                 nodeClientWhisperRpc,
                 ensProvider,
                 transportClient,
-                signService);
+                signService,
+                messageRepository);
 
             return vaspClient;
         }

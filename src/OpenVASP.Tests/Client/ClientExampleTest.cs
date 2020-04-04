@@ -8,6 +8,7 @@ using OpenVASP.CSharpClient;
 using OpenVASP.CSharpClient.Cryptography;
 using OpenVASP.CSharpClient.Delegates;
 using OpenVASP.CSharpClient.Interfaces;
+using OpenVASP.CSharpClient.Persistence;
 using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
@@ -74,6 +75,7 @@ namespace OpenVASP.Tests.Client
         public async Task CreateVaspForNaturalPerson_Builder()
         {
             var builder = new VaspInformationBuilder(NodeClient.EthereumRpc);
+            var messageRepository = new InMemoryMessageRepository();
 
             (VaspInformation vaspInfo, VaspContractInfo vaspContractInfo) = await builder.CreateForNaturalPersonAsync(
                 Settings.VaspSmartContractAddressPerson,
@@ -89,7 +91,8 @@ namespace OpenVASP.Tests.Client
                 NodeClient.WhisperRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient);
+                NodeClient.TransportClient,
+                messageRepository);
 
             // VASP paramaters must be derived from smart contract
             Assert.NotNull(vasp.VaspInfo.Name);
@@ -107,6 +110,7 @@ namespace OpenVASP.Tests.Client
         [Fact]
         public async Task CreateVaspForNaturalPerson_Static()
         {
+            var messageRepository = new InMemoryMessageRepository();
             (VaspInformation vaspInfo, VaspContractInfo vaspContractInfo) = await VaspInformationBuilder.CreateForNaturalPersonAsync(
                 NodeClient.EthereumRpc,
                 Settings.VaspSmartContractAddressPerson,
@@ -122,7 +126,8 @@ namespace OpenVASP.Tests.Client
                 NodeClient.WhisperRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient);
+                NodeClient.TransportClient,
+                messageRepository);
 
             // VASP paramaters must be derived from smart contract
             Assert.NotNull(vasp.VaspInfo.Name);
@@ -140,6 +145,7 @@ namespace OpenVASP.Tests.Client
         [Fact]
         public async Task CreateVaspForJuridicalPerso()
         {
+            var messageRepository = new InMemoryMessageRepository();
             (VaspInformation vaspInfo, VaspContractInfo vaspContractInfo) = await VaspInformationBuilder.CreateForJuridicalPersonAsync(
                 NodeClient.EthereumRpc,
                 Settings.VaspSmartContractAddressJuridical,
@@ -154,7 +160,8 @@ namespace OpenVASP.Tests.Client
                 NodeClient.WhisperRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient);
+                NodeClient.TransportClient,
+                messageRepository);
 
             // VASP paramaters must be derived from smart contract
             Assert.NotNull(vasp.VaspInfo.Name);
@@ -178,6 +185,7 @@ namespace OpenVASP.Tests.Client
             var signPub = signature.GetPubKey().ToHex(prefix: true);
             var handshakePub = handshake.PublicKey;
 
+            var messageRepository = new InMemoryMessageRepository();
             (VaspInformation vaspInfo, VaspContractInfo vaspContractInfo) = await VaspInformationBuilder.CreateForBankAsync(
                 NodeClient.EthereumRpc,
                 Settings.VaspSmartContractAddressBank,
@@ -192,7 +200,8 @@ namespace OpenVASP.Tests.Client
                 NodeClient.WhisperRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient);
+                NodeClient.TransportClient,
+                messageRepository);
 
             // VASP paramaters must be derived from smart contract
             Assert.NotNull(vasp.VaspInfo.Name);
@@ -212,6 +221,8 @@ namespace OpenVASP.Tests.Client
         {
             int sessionTerminationCounter = 0;
             SessionTermination sessionTerminationDelegate = @event => { sessionTerminationCounter++; };
+            var originatorMessageRepository = new InMemoryMessageRepository();
+            var beneficiaryMessageRepository = new InMemoryMessageRepository();
 
             (VaspInformation vaspInfoPerson, VaspContractInfo vaspContractInfoPerson) = await VaspInformationBuilder.CreateForNaturalPersonAsync(
                 NodeClient.EthereumRpc,
@@ -228,7 +239,8 @@ namespace OpenVASP.Tests.Client
                 NodeClient.WhisperRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient);
+                NodeClient.TransportClient,
+                originatorMessageRepository);
 
             (VaspInformation vaspInfoJuridical, VaspContractInfo vaspContractInfoJuridical) = await VaspInformationBuilder.CreateForJuridicalPersonAsync(
                 NodeClient.EthereumRpc,
@@ -244,7 +256,8 @@ namespace OpenVASP.Tests.Client
                 NodeClient.WhisperRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient);
+                NodeClient.TransportClient,
+                beneficiaryMessageRepository);
 
             var originatorVaan =  VirtualAssetssAccountNumber.Create(   vaspInfoPerson.GetVaspCode(), "524ee3fb082809");
             var beneficiaryVaan = VirtualAssetssAccountNumber.Create(vaspInfoJuridical.GetVaspCode(), "524ee3fb082809");
@@ -320,18 +333,37 @@ namespace OpenVASP.Tests.Client
             var transferConformation = 
                 await session.TransferDispatchAsync(transferReply.Transfer, new Transaction("0xtxhash", DateTime.UtcNow, "0x0...a"));
 
+            var beneficiarySession = beneficiary.GetActiveSessions().First() as BeneficiarySession;
+
             Assert.Equal(1, originator.GetActiveSessions().Count);
             Assert.True(originator.GetActiveSessions().First() is OriginatorSession);
 
             Assert.Equal(1, beneficiary.GetActiveSessions().Count);
-            Assert.True(beneficiary.GetActiveSessions().First() is BeneficiarySession);
+            Assert.True(beneficiarySession != null);
 
             await session.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
             session.Wait();
+            beneficiarySession.Wait();
+
             originator.Dispose();
             beneficiary.Dispose();
 
             Assert.Equal(2, sessionTerminationCounter);
+
+            var pair = originatorMessageRepository.MessageStorage.First();
+            var messagesReceivedByOriginator = pair.Value.ToArray();
+
+            pair = beneficiaryMessageRepository.MessageStorage.First();
+            var messagesReceivedByBeneficiary = pair.Value.ToArray();
+
+            Assert.True(messagesReceivedByOriginator[0] is SessionReplyMessage);
+            Assert.True(messagesReceivedByOriginator[1] is TransferReplyMessage);
+            Assert.True(messagesReceivedByOriginator[2] is TransferConfirmationMessage);
+
+            Assert.True(messagesReceivedByBeneficiary[0] is SessionRequestMessage);
+            Assert.True(messagesReceivedByBeneficiary[1] is TransferRequestMessage);
+            Assert.True(messagesReceivedByBeneficiary[2] is TransferDispatchMessage);
+            Assert.True(messagesReceivedByBeneficiary[3] is TerminationMessage);
 
 
             _testOutputHelper.WriteLine("End of test");

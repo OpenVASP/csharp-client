@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
-using OpenVASP.Tests;
 
 namespace OpenVASP.CSharpClient
 {

@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Interfaces;
+using OpenVASP.CSharpClient.Persistence;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 using OpenVASP.Messaging.MessagingEngine;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
@@ -33,7 +33,8 @@ namespace OpenVASP.CSharpClient.Sessions
             string privateSigningKey,
             IWhisperRpc whisperRpc,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            IMessageRepository messageRepository)
             //IEnsProvider ensProvider)
             : base(
                 originatorVaspContractInfo,
@@ -43,7 +44,8 @@ namespace OpenVASP.CSharpClient.Sessions
                 privateSigningKey,
                 whisperRpc,
                 transportClient,
-                signService)
+                signService,
+                messageRepository)
         {
             this._beneficiaryVaan = beneficiaryVaan;
             this.SessionId = Guid.NewGuid().ToString();
@@ -53,37 +55,35 @@ namespace OpenVASP.CSharpClient.Sessions
             this._originator = originator;
 
             _messageHandlerResolverBuilder.AddHandler(typeof(SessionReplyMessage),
-                new SessionReplyMessageHandler((sessionReplyMessage, token) =>
+                new SessionReplyMessageHandler(async (sessionReplyMessage, token) =>
                 {
                     if (_sessionReplyCompletionSource.Task.Status == TaskStatus.WaitingForActivation)
                     {
                         this.CounterPartyTopic = sessionReplyMessage.HandShake.TopicB;
+                        await messageRepository.SaveMessageAsync(sessionReplyMessage);
                         _sessionReplyCompletionSource.SetResult(sessionReplyMessage);
                     }
 
-                    return Task.CompletedTask;
                 }));
 
             _messageHandlerResolverBuilder.AddHandler(typeof(TransferReplyMessage),
-                new TransferReplyMessageHandler((transferReplyMessage, token) =>
+                new TransferReplyMessageHandler(async (transferReplyMessage, token) =>
                 {
                     if (_transferReplyCompletionSource.Task.Status == TaskStatus.WaitingForActivation)
                     {
+                        await messageRepository.SaveMessageAsync(transferReplyMessage);
                         _transferReplyCompletionSource.TrySetResult(transferReplyMessage);
                     }
-
-                    return Task.CompletedTask;
                 }));
 
             _messageHandlerResolverBuilder.AddHandler(typeof(TransferConfirmationMessage),
-                new TransferConfirmationMessageHandler((transferDispatchMessage, token) =>
+                new TransferConfirmationMessageHandler(async (transferDispatchMessage, token) =>
                 {
                     if (_transferConfirmationCompletionSource.Task.Status == TaskStatus.WaitingForActivation)
                     {
+                        await messageRepository.SaveMessageAsync(transferDispatchMessage);
                         _transferConfirmationCompletionSource.TrySetResult(transferDispatchMessage);
                     }
-
-                    return Task.CompletedTask;
                 }));
 
             _messageHandlerResolverBuilder.AddHandler(typeof(TerminationMessage),
@@ -91,6 +91,7 @@ namespace OpenVASP.CSharpClient.Sessions
                 {
                     _hasReceivedTerminationMessage = true;
 
+                    await messageRepository.SaveMessageAsync(message);
                     await TerminateAsync(message.GetMessageCode());
                 }));
         }
@@ -98,10 +99,7 @@ namespace OpenVASP.CSharpClient.Sessions
         public override async Task StartAsync()
         {
             await base.StartAsync();
-
-            //string beneficiaryVaspContractAddress = await _ensProvider.GetContractAddressByVaspCodeAsync(_beneficiaryVaan.VaspCode);
-            //await _ethereumRpc.GetVaspContractInfoAync()
-
+            
             var sessionRequestMessage = new SessionRequestMessage(
                 this.SessionId,
                 new HandShakeRequest(this._sessionTopic, this._pubEncryptionKey),

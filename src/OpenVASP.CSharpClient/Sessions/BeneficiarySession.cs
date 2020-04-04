@@ -1,11 +1,10 @@
 ﻿using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Interfaces;
+using OpenVASP.CSharpClient.Persistence;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 using OpenVASP.Messaging.MessagingEngine;
-using OpenVASP.Tests.Client;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
@@ -24,7 +23,8 @@ namespace OpenVASP.CSharpClient.Sessions
             IWhisperRpc whisperRpc,
             IVaspMessageHandler vaspMessageHandler,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            IMessageRepository messageRepository)
             : base(
                 beneficiaryVaspContractInfo,
                 beneficiaryVasp,
@@ -33,7 +33,8 @@ namespace OpenVASP.CSharpClient.Sessions
                 privateSigningKey, 
                 whisperRpc,
                 transportClient, 
-                signService)
+                signService,
+                messageRepository)
         {
             this.SessionId = sessionId;
             this.CounterPartyTopic = counterpartyTopic;
@@ -42,6 +43,7 @@ namespace OpenVASP.CSharpClient.Sessions
             _messageHandlerResolverBuilder.AddHandler(typeof(TransferRequestMessage), new TransferRequestMessageHandler(
                 async (message, cancellationToken) =>
                 {
+                    await messageRepository.SaveMessageAsync(message);
                     var reply = await _vaspMessageHandler.TransferRequestHandlerAsync(message, this);
 
                     await _transportClient.SendAsync(new MessageEnvelope()
@@ -56,6 +58,7 @@ namespace OpenVASP.CSharpClient.Sessions
             _messageHandlerResolverBuilder.AddHandler(typeof(TransferDispatchMessage), new TransferDispatchMessageHandler(
                 async (message, cancellationToken) =>
                 {
+                    await messageRepository.SaveMessageAsync(message);
                     var reply = await _vaspMessageHandler.TransferDispatchHandlerAsync(message, this);
 
                     await _transportClient.SendAsync(new MessageEnvelope()
@@ -71,6 +74,7 @@ namespace OpenVASP.CSharpClient.Sessions
                 new TerminationMessageHandler(async (message, token) =>
                 {
                     _hasReceivedTerminationMessage = true;
+                    await messageRepository.SaveMessageAsync(message);
                     await TerminateAsync(message.GetMessageCode());
                 }));
         }

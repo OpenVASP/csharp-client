@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
+using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient.Interfaces
 {
