@@ -30,7 +30,8 @@ namespace OpenVASP.CSharpClient
         private readonly IEnsProvider _ensProvider;
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
-        
+        private readonly IVaspCallbacks _vaspCallbacks;
+
         private readonly ConcurrentDictionary<string, BeneficiarySession> _beneficiarySessionsDict = new ConcurrentDictionary<string, BeneficiarySession>();
         private readonly ConcurrentDictionary<string, OriginatorSession> _originatorSessionsDict = new ConcurrentDictionary<string, OriginatorSession>();
 
@@ -43,6 +44,7 @@ namespace OpenVASP.CSharpClient
         private Task _listener;
         private VaspContractInfo _vaspContractInfo;
 
+        private readonly IOriginatorVaspCallbacks _originatorVaspCallbacks;
 
         //TODO: Get rid of Whisper completely
         private VaspClient(
@@ -54,7 +56,8 @@ namespace OpenVASP.CSharpClient
             IWhisperRpc nodeClientWhisperRpc,
             IEnsProvider ensProvider,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            IVaspCallbacks vaspCallbacks)
         {
             this._handshakeKey = handshakeKey;
             this._signatureKey = signatureHexKey;
@@ -66,6 +69,43 @@ namespace OpenVASP.CSharpClient
             this._ensProvider = ensProvider;
             this._transportClient = transportClient;
             this._signService = signService;
+            this._vaspCallbacks = vaspCallbacks;
+            
+            _originatorVaspCallbacks = new OriginatorVaspCallbacks(
+                async (message, originatorSession) =>
+                {
+                    await vaspCallbacks.SessionReplyMessageReceivedAsync(originatorSession.SessionId, message);
+                },
+                async (message, originatorSession) =>
+                {
+                    await vaspCallbacks.TransferReplyMessageReceivedAsync(originatorSession.SessionId, message);
+                    if (message.Message.MessageCode != "1") //todo: handle properly.
+                    {
+                        await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
+                        originatorSession.Wait();
+                    }
+                },
+                async (message, originatorSession) =>
+                {
+                    await vaspCallbacks.TransferConfirmationMessageReceivedAsync(originatorSession.SessionId, message);
+                    await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
+                    originatorSession.Wait();
+                });
+            
+            IVaspMessageHandler vaspMessageHandler = new VaspMessageHandlerCallbacks(
+                async (request, currentSession) =>
+                {
+                    _beneficiarySessionsDict[currentSession.SessionId] = currentSession as BeneficiarySession;
+                    await vaspCallbacks.SessionRequestMessageReceivedAsync(currentSession.SessionId, request);
+                },
+                async (request, currentSession) =>
+                {
+                    await vaspCallbacks.TransferRequestMessageReceivedAsync(currentSession.SessionId, request);
+                },
+                async (dispatch, currentSession)
+                    => await vaspCallbacks.TransferDispatchMessageReceivedAsync(currentSession.SessionId, dispatch));
+            
+            RunListener(vaspMessageHandler);
         }
 
         public VaspInformation VaspInfo { get; }
@@ -86,7 +126,7 @@ namespace OpenVASP.CSharpClient
         /// Run listener which would process incoming messages.
         /// </summary>
         /// <param name="messageHandler">Handler which authorizes originator's Vasp and processes Transfer Request and Transfer Dispatch Messages</param>
-        public void RunListener(IVaspMessageHandler messageHandler)
+        private void RunListener(IVaspMessageHandler messageHandler)
         {
             lock (_lock)
             {
@@ -176,17 +216,8 @@ namespace OpenVASP.CSharpClient
             {
             }
         }
-
-        /// <summary>
-        /// Create a session and send a request session message to beneficiary Vasp.
-        /// </summary>
-        /// <param name="originator">Information about a client who sends a transfer</param>
-        /// <param name="beneficiaryVaan">Information about a receiver of the transfer</param>
-        /// <returns>OriginatorSession through which transfer request and transfer dispatch should be requested.</returns>
-        public async Task<OriginatorSession> CreateSessionAsync(
-            Originator originator,
-            VirtualAssetsAccountNumber beneficiaryVaan,
-            IOriginatorVaspCallbacks _originatorVaspCallbacks)
+        
+        public async Task<string> CreateSessionAsync(Originator originator, VirtualAssetsAccountNumber beneficiaryVaan)
         {
             string counterPartyVaspContractAddress = await _ensProvider.GetContractAddressByVaspCodeAsync(beneficiaryVaan.VaspCode);
             var contractInfo = await _ethereumRpc.GetVaspContractInfoAync(counterPartyVaspContractAddress);
@@ -213,15 +244,58 @@ namespace OpenVASP.CSharpClient
                 this.NotifySessionCreated(session);
                 session.OnSessionTermination += this.ProcessSessionTermination;
                 await session.StartAsync();
-
-                return session;
+            }
+            else
+            {
+                await session.TerminateAsync(TerminationMessage.TerminationMessageCode
+                    .SessionClosedTransferCancelledByOriginator);
             }
 
-            await session.TerminateAsync(TerminationMessage.TerminationMessageCode
-                .SessionClosedTransferCancelledByOriginator);
-            
-            //TODO: process it as exception or retry
-            return null;
+            return session.SessionId;
+        }
+
+        public async Task SessionReplyAsync(string sessionId, SessionReplyMessage.SessionReplyMessageCode code)
+        {
+            await _beneficiarySessionsDict[sessionId]
+                .StartAsync(code);
+        }
+
+        public async Task TransferRequestAsync(string sessionId, string beneficiaryName, VirtualAssetType type, decimal amount)
+        {
+            await _originatorSessionsDict[sessionId]
+                .TransferRequestAsync(
+                    new TransferInstruction
+                    {
+                        VirtualAssetTransfer = new VirtualAssetTransfer
+                        {
+                            TransferType = TransferType.BlockchainTransfer,
+                            VirtualAssetType = type,
+                            TransferAmount = amount
+                        },
+                        BeneficiaryName = beneficiaryName
+                    });
+        }
+
+        public async Task TransferReplyAsync(string sessionId, TransferReplyMessage message)
+        {
+            await _beneficiarySessionsDict[sessionId].SendTransferReplyMessageAsync(message);
+        }
+
+        public async Task TransferDispatchAsync(string sessionId, TransferReply transferReply, string transactionHash, string sendingAddress, string beneficiaryName)
+        {
+            await _originatorSessionsDict[sessionId]
+                .TransferDispatchAsync(
+                    transferReply,
+                    new Transaction(
+                        transactionHash,
+                        DateTime.UtcNow, 
+                        sendingAddress),
+                    beneficiaryName);
+        }
+
+        public async Task TransferConfirmAsync(string sessionId, TransferConfirmationMessage message)
+        {
+            await _beneficiarySessionsDict[sessionId].SendTransferConfirmationMessageAsync(message);
         }
 
         public static VaspClient Create(
@@ -233,7 +307,8 @@ namespace OpenVASP.CSharpClient
             IWhisperRpc nodeClientWhisperRpc,
             IEnsProvider ensProvider,
             ISignService signService,
-            ITransportClient transportClient)
+            ITransportClient transportClient,
+            IVaspCallbacks vaspCallbacks)
         {
             var handshakeKey = ECDH_Key.ImportKey(handshakePrivateKeyHex);
 
@@ -246,7 +321,8 @@ namespace OpenVASP.CSharpClient
                 nodeClientWhisperRpc,
                 ensProvider,
                 transportClient,
-                signService);
+                signService,
+                vaspCallbacks);
 
             return vaspClient;
         }

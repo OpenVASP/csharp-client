@@ -1,0 +1,27 @@
+name: Publish On MyGet
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*' # Push version tags matching to *, i.e. v1.0.0, 20.15.10 
+
+jobs:
+  publish:
+    name: List on MyGet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Update Package Id
+        run: bash scripts/package-name-update.sh ${{secrets.NUGET_PACKAGE_NAME}}
+        
+      - name: Build
+        run: dotnet build --configuration Release "src/OpenVASP.CSharpClient.sln"
+        
+      - name: Create the package
+        run: dotnet pack --configuration Release src/OpenVASP.CSharpClient/OpenVASP.CSharpClient.csproj /p:Version=${GITHUB_REF#refs/tags/}
+      
+      - name: Publish the package to GPR
+        run: dotnet nuget push src/OpenVASP.CSharpClient/bin/Release/*.nupkg -k ${{ secrets.MYGET_API_KEY }} -s https://www.myget.org/F/openvasp/api/v2/package

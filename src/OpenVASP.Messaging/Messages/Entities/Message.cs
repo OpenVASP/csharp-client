@@ -1,4 +1,6 @@
-﻿using Newtonsoft.Json;
+﻿using System.Runtime.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace OpenVASP.Messaging.Messages.Entities
 {
@@ -12,7 +14,7 @@ namespace OpenVASP.Messaging.Messages.Entities
             MessageType = type;
         }
         
-        [JsonProperty("type")]
+        [JsonProperty("type"), JsonConverter(typeof(StringEnumConverter))]
         public MessageType MessageType { get; protected set; }
 
         [JsonProperty("msgid")]
