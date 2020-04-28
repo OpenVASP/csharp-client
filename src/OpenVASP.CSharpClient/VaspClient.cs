@@ -32,8 +32,11 @@ namespace OpenVASP.CSharpClient
         private readonly ISignService _signService;
         private readonly IVaspCallbacks _vaspCallbacks;
 
-        private readonly ConcurrentDictionary<string, BeneficiarySession> _beneficiarySessionsDict = new ConcurrentDictionary<string, BeneficiarySession>();
-        private readonly ConcurrentDictionary<string, OriginatorSession> _originatorSessionsDict = new ConcurrentDictionary<string, OriginatorSession>();
+        private readonly ConcurrentDictionary<string, BeneficiarySession> _beneficiarySessionsDict =
+            new ConcurrentDictionary<string, BeneficiarySession>();
+
+        private readonly ConcurrentDictionary<string, OriginatorSession> _originatorSessionsDict =
+            new ConcurrentDictionary<string, OriginatorSession>();
 
         private readonly string _signatureKey;
         private readonly ECDH_Key _handshakeKey;
@@ -70,7 +73,7 @@ namespace OpenVASP.CSharpClient
             this._transportClient = transportClient;
             this._signService = signService;
             this._vaspCallbacks = vaspCallbacks;
-            
+
             _originatorVaspCallbacks = new OriginatorVaspCallbacks(
                 async (message, originatorSession) =>
                 {
@@ -81,17 +84,19 @@ namespace OpenVASP.CSharpClient
                     await vaspCallbacks.TransferReplyMessageReceivedAsync(originatorSession.SessionId, message);
                     if (message.Message.MessageCode != "1") //todo: handle properly.
                     {
-                        await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
+                        await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
+                            .SessionClosedTransferOccured);
                         originatorSession.Wait();
                     }
                 },
                 async (message, originatorSession) =>
                 {
                     await vaspCallbacks.TransferConfirmationMessageReceivedAsync(originatorSession.SessionId, message);
-                    await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
+                    await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
+                        .SessionClosedTransferOccured);
                     originatorSession.Wait();
                 });
-            
+
             IVaspMessageHandler vaspMessageHandler = new VaspMessageHandlerCallbacks(
                 async (request, currentSession) =>
                 {
@@ -104,7 +109,7 @@ namespace OpenVASP.CSharpClient
                 },
                 async (dispatch, currentSession)
                     => await vaspCallbacks.TransferDispatchMessageReceivedAsync(currentSession.SessionId, dispatch));
-            
+
             RunListener(vaspMessageHandler);
         }
 
@@ -181,8 +186,9 @@ namespace OpenVASP.CSharpClient
                                         messageHandler,
                                         _transportClient,
                                         _signService);
-                                    
-                                    await messageHandler.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
+
+                                    await messageHandler.AuthorizeSessionRequestAsync(sessionRequestMessage,
+                                        session);
 
                                     this.NotifySessionCreated(session);
                                     session.OnSessionTermination += this.ProcessSessionTermination;
@@ -216,10 +222,11 @@ namespace OpenVASP.CSharpClient
             {
             }
         }
-        
+
         public async Task<string> CreateSessionAsync(Originator originator, VirtualAssetsAccountNumber beneficiaryVaan)
         {
-            string counterPartyVaspContractAddress = await _ensProvider.GetContractAddressByVaspCodeAsync(beneficiaryVaan.VaspCode);
+            string counterPartyVaspContractAddress =
+                await _ensProvider.GetContractAddressByVaspCodeAsync(beneficiaryVaan.VaspCode);
             var contractInfo = await _ethereumRpc.GetVaspContractInfoAync(counterPartyVaspContractAddress);
             var sessionKey = ECDH_Key.GenerateKey();
             var sharedKey = sessionKey.GenerateSharedSecretHex(contractInfo.HandshakeKey);
@@ -260,7 +267,8 @@ namespace OpenVASP.CSharpClient
                 .StartAsync(code);
         }
 
-        public async Task TransferRequestAsync(string sessionId, string beneficiaryName, VirtualAssetType type, decimal amount)
+        public async Task TransferRequestAsync(string sessionId, string beneficiaryName, VirtualAssetType type,
+            decimal amount)
         {
             await _originatorSessionsDict[sessionId]
                 .TransferRequestAsync(
@@ -281,14 +289,15 @@ namespace OpenVASP.CSharpClient
             await _beneficiarySessionsDict[sessionId].SendTransferReplyMessageAsync(message);
         }
 
-        public async Task TransferDispatchAsync(string sessionId, TransferReply transferReply, string transactionHash, string sendingAddress, string beneficiaryName)
+        public async Task TransferDispatchAsync(string sessionId, TransferReply transferReply, string transactionHash,
+            string sendingAddress, string beneficiaryName)
         {
             await _originatorSessionsDict[sessionId]
                 .TransferDispatchAsync(
                     transferReply,
                     new Transaction(
                         transactionHash,
-                        DateTime.UtcNow, 
+                        DateTime.UtcNow,
                         sendingAddress),
                     beneficiaryName);
         }
@@ -340,8 +349,10 @@ namespace OpenVASP.CSharpClient
                 bool isOriginator = session is OriginatorSession;
                 var runningSession = session;
                 runningSession
-                    .TerminateAsync(isOriginator ? TerminationMessage.TerminationMessageCode.SessionClosedTransferCancelledByOriginator
-                        : TerminationMessage.TerminationMessageCode.SessionClosedTransferDeclinedByBeneficiaryVasp).Wait();
+                    .TerminateAsync(isOriginator
+                        ? TerminationMessage.TerminationMessageCode.SessionClosedTransferCancelledByOriginator
+                        : TerminationMessage.TerminationMessageCode.SessionClosedTransferDeclinedByBeneficiaryVasp)
+                    .Wait();
                 runningSession.Wait();
             }
 
