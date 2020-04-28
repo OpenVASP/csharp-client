@@ -54,7 +54,7 @@ namespace OpenVASP.Messaging.Messages
         [JsonProperty("transfer")]
         public TransferReply Transfer { get; private set; }
 
-        [JsonProperty("transaction")]
+        [JsonProperty("tx")]
         public Transaction Transaction { get; private set; }
 
         [JsonProperty("vasp")]
