@@ -8,6 +8,12 @@ namespace OpenVASP.Messaging.Messages.Entities
     /// </summary>
     public class VirtualAssetsAccountNumber
     {
+        public VaspCode VaspCode { get; }
+
+        public string CustomerNumber { get; }
+
+        public string Vaan { get; }
+
         private VirtualAssetsAccountNumber(VaspCode vaspCode, string customerSpecificNumberHex)
         {
             VaspCode = vaspCode;
@@ -19,12 +25,6 @@ namespace OpenVASP.Messaging.Messages.Entities
 
             Vaan = $"{vaan}{checkSumStr}";
         }
-
-        public VaspCode VaspCode { get;}
-
-        public string CustomerNumber { get; }
-
-        public string Vaan { get; }
 
         public static VirtualAssetsAccountNumber Create(string vaspCode, string customerSpecificNumberHex)
         {
@@ -45,22 +45,6 @@ namespace OpenVASP.Messaging.Messages.Entities
             }
 
             return check;
-        }
-    }
-
-    public class VaspCode
-    {
-        private VaspCode(string vaspCodeHex)
-        {
-            this.Code = vaspCodeHex;
-        }
-        public string Code { get; }
-
-        public static VaspCode Create(string vaspCodeHex)
-        {
-            var result = new VaspCode(vaspCodeHex);
-
-            return result;
         }
     }
 }

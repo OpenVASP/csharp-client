@@ -25,8 +25,8 @@ namespace OpenVASP.Tests.Client
         private readonly IEnsProvider _fakeEnsProvider;
         private readonly WhisperSignService _signService;
         private readonly WhisperRpc _whisperRpc;
-
-        public INodeClient NodeClient { get; set; }
+        private readonly EthereumRpc _ethereumRpc;
+        private readonly WhisperTransportClient _transportClient;
 
         public VaspTestSettings Settings { get; set; }
 
@@ -41,16 +41,10 @@ namespace OpenVASP.Tests.Client
             this._fakeEnsProvider = new FakeEnsProvider();
             this._testOutputHelper = testOutputHelper;
             this._signService = new WhisperSignService();
+            this._ethereumRpc = new EthereumRpc(new Web3(ethereumRpcUrl));
             this._whisperRpc = new WhisperRpc(new Web3(whisperRpcUrl), new WhisperMessageFormatter());
+            this._transportClient = new WhisperTransportClient(_whisperRpc, _signService, new WhisperMessageFormatter());
 
-            var ethRpc = new EthereumRpc(new Web3(ethereumRpcUrl));
-
-            NodeClient = new NodeClient()
-            {
-                EthereumRpc = ethRpc,
-                WhisperRpc = _whisperRpc,
-                TransportClient = new TransportClient(_whisperRpc, _signService, new WhisperMessageFormatter())
-            };
             Settings = new VaspTestSettings()
             {
                 PersonHandshakePrivateKeyHex = "0xe7578145d518e5272d660ccfdeceedf2d55b90867f2b7a6e54dc726662aebac2",
@@ -76,13 +70,13 @@ namespace OpenVASP.Tests.Client
         public async Task ConnectionBetweenTwoClientsSuccessful()
         {
             (VaspInformation vaspInfoPerson, VaspContractInfo vaspContractInfoPerson) = await VaspInformationBuilder.CreateForNaturalPersonAsync(
-                NodeClient.EthereumRpc,
+                _ethereumRpc,
                 Settings.VaspSmartContractAddressPerson,
                 Settings.NaturalPersonIds,
                 Settings.PlaceOfBirth);
 
             (VaspInformation vaspInfoJuridical, VaspContractInfo vaspContractInfoJuridical) = await VaspInformationBuilder.CreateForJuridicalPersonAsync(
-                NodeClient.EthereumRpc,
+                _ethereumRpc,
                 Settings.VaspSmartContractAddressJuridical,
                 Settings.JuridicalIds);
             
@@ -109,28 +103,26 @@ namespace OpenVASP.Tests.Client
 
             var originator = VaspClient.Create(
                 vaspInfoPerson,
-                vaspContractInfoPerson,
+                vaspContractInfoPerson.VaspCode,
                 Settings.PersonHandshakePrivateKeyHex,
                 Settings.PersonSignaturePrivateKeyHex,
-                NodeClient.EthereumRpc,
-                NodeClient.WhisperRpc,
+                _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient,
+                _transportClient,
                 handler);
             
             originator.Dispose();
 
             var beneficiary = VaspClient.Create(
                 vaspInfoJuridical,
-                vaspContractInfoJuridical,
+                vaspContractInfoJuridical.VaspCode,
                 Settings.JuridicalHandshakePrivateKeyHex,
                 Settings.JuridicalSignaturePrivateKeyHex,
-                NodeClient.EthereumRpc,
-                NodeClient.WhisperRpc,
+                _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient,
+                _transportClient,
                 handler);
             
             beneficiary.Dispose();
@@ -211,26 +203,24 @@ namespace OpenVASP.Tests.Client
             
             originator = VaspClient.Create(
                 vaspInfoPerson,
-                vaspContractInfoPerson,
+                vaspContractInfoPerson.VaspCode,
                 Settings.PersonHandshakePrivateKeyHex,
                 Settings.PersonSignaturePrivateKeyHex,
-                NodeClient.EthereumRpc,
-                NodeClient.WhisperRpc,
+                _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient,
+                _transportClient,
                 handler);
 
             beneficiary = VaspClient.Create(
                 vaspInfoJuridical,
-                vaspContractInfoJuridical,
+                vaspContractInfoJuridical.VaspCode,
                 Settings.JuridicalHandshakePrivateKeyHex,
                 Settings.JuridicalSignaturePrivateKeyHex,
-                NodeClient.EthereumRpc,
-                NodeClient.WhisperRpc,
+                _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,
-                NodeClient.TransportClient,
+                _transportClient,
                 handler);
 
             await originator.CreateSessionAsync(originatorDoc, beneficiaryVaan);

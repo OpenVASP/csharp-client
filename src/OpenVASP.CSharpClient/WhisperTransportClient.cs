@@ -11,17 +11,28 @@ namespace OpenVASP.CSharpClient
 {
     //TODO: add retry policies
 
-    public class TransportClient : ITransportClient
+    public class WhisperTransportClient : ITransportClient
     {
+        private const int SignatureLength = 130;
         private readonly IMessageFormatter _messageFormatter;
-        private readonly IWhisperRpc _whisper;
+        private readonly IWhisperRpc _whisperRpc;
         private readonly ISignService _signService;
 
-        public TransportClient(IWhisperRpc whisper, ISignService signService, IMessageFormatter messageFormatter)
+        public WhisperTransportClient(IWhisperRpc whisperRpc, ISignService signService, IMessageFormatter messageFormatter)
         {
-            _whisper = whisper;
+            _whisperRpc = whisperRpc;
             _signService = signService;
             _messageFormatter = messageFormatter;
+        }
+
+        public async Task<string> RegisterSymKeyAsync(string privateKeyHex)
+        {
+            return await _whisperRpc.RegisterSymKeyAsync(privateKeyHex);
+        }
+
+        public async Task<string> RegisterKeyPairAsync(string privateKeyHex)
+        {
+            return await _whisperRpc.RegisterKeyPairAsync(privateKeyHex);
         }
 
         public async Task<string> SendAsync(MessageEnvelope messageEnvelope, MessageBase message)
@@ -31,7 +42,7 @@ namespace OpenVASP.CSharpClient
             
             return await RetryPolicy.ExecuteAsync(async () =>
             {
-                return await _whisper.SendMessageAsync(
+                return await _whisperRpc.SendMessageAsync(
                     messageEnvelope.Topic,
                     messageEnvelope.EncryptionKey,
                     messageEnvelope.EncryptionType,
@@ -39,9 +50,17 @@ namespace OpenVASP.CSharpClient
             });
         }
 
+        public async Task<string> CreateMessageFilterAsync(string topicHex, string privateKeyId = null,
+            string symKeyId = null, string signingKey = null)
+        {
+            var messageFilter = await _whisperRpc.CreateMessageFilterAsync(topicHex: topicHex, 
+                privateKeyId, symKeyId, signingKey);
+            return messageFilter;
+        }
+
         public async Task<IReadOnlyCollection<TransportMessage>> GetSessionMessagesAsync(string messageFilter)
         {
-            var messages = await RetryPolicy.ExecuteAsync(async () => await _whisper.GetMessagesAsync(messageFilter));
+            var messages = await RetryPolicy.ExecuteAsync(async () => await _whisperRpc.GetMessagesAsync(messageFilter));
 
             if (messages == null || messages.Count == 0)
             {
@@ -50,8 +69,8 @@ namespace OpenVASP.CSharpClient
 
             var serializedMessages = messages.Select(x =>
             {
-                var payload = x.Payload.Substring(0, x.Payload.Length - 130);
-                var sign = x.Payload.Substring(x.Payload.Length - 130, 130);
+                var payload = x.Payload.Substring(0, x.Payload.Length - SignatureLength);
+                var sign = x.Payload.Substring(x.Payload.Length - SignatureLength, SignatureLength);
                 var message = _messageFormatter.Deserialize(payload);
 
                 return TransportMessage.CreateMessage(message, payload, sign);

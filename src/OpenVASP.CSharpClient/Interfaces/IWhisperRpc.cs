@@ -29,7 +29,8 @@ namespace OpenVASP.CSharpClient.Interfaces
         /// <param name="privateKeyId"></param>
         /// <param name="symKeyId"></param>
         /// <returns>Filter id</returns>
-        Task<string> CreateMessageFilterAsync(string topicHex, string privateKeyId = null, string symKeyId = null, string signingKey = null);
+        Task<string> CreateMessageFilterAsync(string topicHex, string privateKeyId = null, 
+            string symKeyId = null, string signingKey = null);
 
         /// <summary>
         /// Send message via Whisper

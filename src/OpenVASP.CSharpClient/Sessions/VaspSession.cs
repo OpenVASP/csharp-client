@@ -19,7 +19,6 @@ namespace OpenVASP.Tests.Client.Sessions
     public abstract class VaspSession : IDisposable
     {
         // ReSharper disable once NotAccessedField.Global
-        protected readonly IWhisperRpc _whisperRpc;
         protected readonly CancellationTokenSource _cancellationTokenSource;
         protected readonly string _sessionTopic;
         protected readonly string _sharedKey;
@@ -27,7 +26,6 @@ namespace OpenVASP.Tests.Client.Sessions
         protected readonly string _counterPartyPubSigningKey;
         protected readonly MessageHandlerResolverBuilder _messageHandlerResolverBuilder;
         protected readonly VaspInformation _vaspInfo;
-        protected readonly VaspContractInfo _vaspContractInfo;
         protected readonly ITransportClient _transportClient;
         protected readonly ISignService _signService;
 
@@ -43,20 +41,16 @@ namespace OpenVASP.Tests.Client.Sessions
         public event SessionTermination OnSessionTermination;
 
         public VaspSession(
-            VaspContractInfo vaspContractInfo,
             VaspInformation vaspInfo,
             string counterPartyPubSigningKey,
             string sharedEncryptionKey,
             string privateSigningKey,
-            IWhisperRpc whisperRpc,
             ITransportClient transportClient,
             ISignService signService)
         {
             this._vaspInfo = vaspInfo;
-            this._vaspContractInfo = vaspContractInfo;
             this._sessionTopic = TopicGenerator.GenerateSessionTopic();
             this._cancellationTokenSource = new CancellationTokenSource();
-            this._whisperRpc = whisperRpc;
             this._sharedKey = sharedEncryptionKey;
             this._privateSigningKey = privateSigningKey;
             this._counterPartyPubSigningKey = counterPartyPubSigningKey;
@@ -87,8 +81,9 @@ namespace OpenVASP.Tests.Client.Sessions
 
                     _task = taskFactory.StartNew(async (_) =>
                     {
-                        _sharedSymKeyId = await _whisperRpc.RegisterSymKeyAsync(_sharedKey);
-                        string messageFilter = await _whisperRpc.CreateMessageFilterAsync(topicHex: _sessionTopic, symKeyId: _sharedSymKeyId);
+                        _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
+                        var messageFilter = await _transportClient.CreateMessageFilterAsync(topicHex: _sessionTopic, 
+                            symKeyId: _sharedSymKeyId);
                         var messageHandlerResolver = _messageHandlerResolverBuilder.Build();
                         this._producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
 
@@ -103,7 +98,10 @@ namespace OpenVASP.Tests.Client.Sessions
                                 {
                                     if (!_signService.VerifySign(message.Payload, message.Signature,
                                         _counterPartyPubSigningKey))
+                                    {
+                                        //TODO: Log this
                                         continue;
+                                    }
 
                                     _producerConsumerQueue.Enqueue(message.Message);
                                 }

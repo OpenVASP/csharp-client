@@ -42,14 +42,15 @@ namespace OpenVASP.CSharpClient
             {
                 Topics = new Object [] {topic.EnsureHexPrefix()},
                 PrivateKeyID = privateKeyId,
-                SymKeyID = symKeyId
+                SymKeyID = symKeyId,
 
             });
-
+            
             return filter;
         }
 
-        public async Task<string> SendMessageAsync(string topic, string encryptionKey, EncryptionType encryptionType, string payload)
+        public async Task<string> SendMessageAsync(string topic, string encryptionKey, 
+            EncryptionType encryptionType, string payload)
         {
             var messageInput = new MessageInput()
             {
@@ -124,9 +125,9 @@ namespace OpenVASP.CSharpClient
                     return new ReceivedMessage[] { };
                 }
 
-                var receivedMessages = messages.Select(x => new ReceivedMessage()
+                var receivedMessages = messages.Select(x => new ReceivedMessage
                 {
-                    MessageEnvelope = new MessageEnvelope()
+                    MessageEnvelope = new MessageEnvelope
                     {
                         Topic = x.Topic,
                         EncryptionType = EncryptionType.Assymetric,

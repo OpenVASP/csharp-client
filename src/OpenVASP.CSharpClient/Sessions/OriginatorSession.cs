@@ -20,7 +20,6 @@ namespace OpenVASP.CSharpClient.Sessions
 
         public OriginatorSession(
                 Originator originator,
-                VaspContractInfo originatorVaspContractInfo,
                 VaspInformation originatorVasp,
                 VirtualAssetsAccountNumber beneficiaryVaan,
                 string beneficiaryPubSigningKey,
@@ -28,18 +27,15 @@ namespace OpenVASP.CSharpClient.Sessions
                 string sharedEncryptionKey,
                 string pubEncryptionKey,
                 string privateSigningKey,
-                IWhisperRpc whisperRpc,
                 ITransportClient transportClient,
                 ISignService signService,
                 IOriginatorVaspCallbacks originatorVaspCallbacks)
             //IEnsProvider ensProvider)
             : base(
-                originatorVaspContractInfo,
                 originatorVasp,
                 beneficiaryPubSigningKey,
                 sharedEncryptionKey,
                 privateSigningKey,
-                whisperRpc,
                 transportClient,
                 signService)
         {

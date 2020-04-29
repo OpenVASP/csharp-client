@@ -14,24 +14,20 @@ namespace OpenVASP.CSharpClient.Sessions
         private readonly IVaspMessageHandler _vaspMessageHandler;
 
         public BeneficiarySession(
-            VaspContractInfo beneficiaryVaspContractInfo,
             VaspInformation beneficiaryVasp,
             string sessionId,
             string counterpartyTopic,
             string counterPartyPubSigningKey,
             string sharedKey,
             string privateSigningKey,
-            IWhisperRpc whisperRpc,
             IVaspMessageHandler vaspMessageHandler,
             ITransportClient transportClient,
             ISignService signService)
             : base(
-                beneficiaryVaspContractInfo,
                 beneficiaryVasp,
                 counterPartyPubSigningKey, 
                 sharedKey, 
                 privateSigningKey, 
-                whisperRpc,
                 transportClient, 
                 signService)
         {
@@ -85,7 +81,7 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             var reply = SessionReplyMessage.Create(this.SessionId, code, new HandShakeResponse(this.SessionTopic), this._vaspInfo);
             this.CounterParty.VaspInfo = reply.Vasp;
-            _sharedSymKeyId = await _whisperRpc.RegisterSymKeyAsync(_sharedKey);
+            _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
 
             await _transportClient.SendAsync(new MessageEnvelope()
             {

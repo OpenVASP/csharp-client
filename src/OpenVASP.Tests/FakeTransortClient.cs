@@ -22,7 +22,23 @@ namespace OpenVASP.Tests
             this._messageFormatter = messageFormatter;
             this._signService = signService;
         }
-        
+
+        public Task<string> RegisterSymKeyAsync(string privateKeyHex)
+        {
+            return Task.FromResult("TEST");
+        }
+
+        public Task<string> RegisterKeyPairAsync(string privateKeyHex)
+        {
+            return Task.FromResult("TEST");
+        }
+
+        public Task<string> CreateMessageFilterAsync(string topicHex, string privateKeyId = null, string symKeyId = null,
+            string signingKey = null)
+        {
+            return Task.FromResult("TEST");
+        }
+
         public Task<string> SendAsync(MessageEnvelope messageEnvelope, MessageBase message)
         {
             var payload = _messageFormatter.GetPayload(message);
