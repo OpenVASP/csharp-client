@@ -4,8 +4,6 @@ using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 using OpenVASP.Messaging.MessagingEngine;
-using OpenVASP.Tests.Client;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
@@ -57,7 +55,7 @@ namespace OpenVASP.CSharpClient.Sessions
 
         public async Task SendTransferReplyMessageAsync(TransferReplyMessage message)
         {
-            await _transportClient.SendAsync(new MessageEnvelope()
+            await _transportClient.SendAsync(new MessageEnvelope
             {
                 Topic = this.CounterPartyTopic,
                 SigningKey = _privateSigningKey,
@@ -68,7 +66,7 @@ namespace OpenVASP.CSharpClient.Sessions
 
         public async Task SendTransferConfirmationMessageAsync(TransferConfirmationMessage message)
         {
-            await _transportClient.SendAsync(new MessageEnvelope()
+            await _transportClient.SendAsync(new MessageEnvelope
             {
                 Topic = this.CounterPartyTopic,
                 SigningKey = _privateSigningKey,
@@ -83,7 +81,7 @@ namespace OpenVASP.CSharpClient.Sessions
             this.CounterParty.VaspInfo = reply.Vasp;
             _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
 
-            await _transportClient.SendAsync(new MessageEnvelope()
+            await _transportClient.SendAsync(new MessageEnvelope
             {
                 EncryptionKey = _sharedSymKeyId,
                 EncryptionType = EncryptionType.Symmetric,

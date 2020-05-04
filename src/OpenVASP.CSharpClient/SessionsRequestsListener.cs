@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Cryptography;
-using OpenVASP.CSharpClient.Delegates;
 using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.CSharpClient.Sessions;
@@ -18,7 +16,7 @@ namespace OpenVASP.CSharpClient
     /// </summary>
     class SessionsRequestsListener : IDisposable
     {
-        private bool _hasStartedListening = false;
+        private bool _hasStartedListening;
         private Task _listener;
 
         private readonly ECDH_Key _handshakeKey;
@@ -36,7 +34,7 @@ namespace OpenVASP.CSharpClient
         /// <summary>
         /// Notifies about session creation.
         /// </summary>
-        public event EventHandler<BeneficiarySession> SessionCreated;
+        public event Func<BeneficiarySession, Task> SessionCreated;
 
         public SessionsRequestsListener(
             ECDH_Key handshakeKey,
@@ -74,8 +72,7 @@ namespace OpenVASP.CSharpClient
                     this._listener = taskFactory.StartNew(async (_) =>
                     {
                         var privateKeyId = await _transportClient.RegisterKeyPairAsync(this._handshakeKey.PrivateKey);
-                        string messageFilter =
-                            await _transportClient.CreateMessageFilterAsync(topicHex: _vaspCode.Code, privateKeyId);
+                        string messageFilter = await _transportClient.CreateMessageFilterAsync(_vaspCode.Code, privateKeyId);
 
                         do
                         {
@@ -116,7 +113,13 @@ namespace OpenVASP.CSharpClient
 
                                     await messageHandler.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
 
-                                    SessionCreated?.Invoke(this, session);
+                                    if (SessionCreated != null)
+                                    {
+                                        var tasks = SessionCreated.GetInvocationList()
+                                            .OfType<Func<BeneficiarySession, Task>>()
+                                            .Select(d => d(session));
+                                        await Task.WhenAll(tasks);
+                                    }
                                 }
 
                                 continue;
@@ -142,7 +145,7 @@ namespace OpenVASP.CSharpClient
 
             if (SessionCreated != null)
                 foreach (var d in SessionCreated.GetInvocationList())
-                    SessionCreated -= (d as EventHandler<BeneficiarySession>);
+                    SessionCreated -= (d as Func<BeneficiarySession, Task>);
         }
 
         public void Dispose()

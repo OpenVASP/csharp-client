@@ -6,7 +6,8 @@ namespace OpenVASP.Messaging
 {
     public class MessageHandlerResolverBuilder
     {
-        private List<(Type type, MessageHandlerBase handler)> _registeredHandlers;
+        private readonly List<(Type type, MessageHandlerBase handler)> _registeredHandlers;
+
         public MessageHandlerResolverBuilder()
         {
             _registeredHandlers = new List<(Type type, MessageHandlerBase handler)>();

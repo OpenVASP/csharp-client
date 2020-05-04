@@ -1,11 +1,10 @@
 ﻿namespace OpenVASP.CSharpClient.Events
 {
-    public class SessionCreatedEvent
+    public class SessionCreatedEvent : SessionEventBase
     {
         public SessionCreatedEvent(string sessionId)
+            : base(sessionId)
         {
-            this.SessionId = sessionId;
         }
-        public string SessionId { get;}
     }
 }

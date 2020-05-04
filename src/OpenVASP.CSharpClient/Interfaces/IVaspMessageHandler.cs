@@ -1,7 +1,6 @@
 ﻿using System.Threading.Tasks;
+using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging.Messages;
-using OpenVASP.Messaging.Messages.Entities;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient.Interfaces
 {
@@ -11,6 +10,7 @@ namespace OpenVASP.CSharpClient.Interfaces
         /// Authorize originator VASP.
         /// </summary>
         /// <param name="request">Info about originator vasp</param>
+        /// <param name="vaspSession">Session which processes a request</param>
         /// <returns>Is originator vasp allowed to start a session</returns>
         Task AuthorizeSessionRequestAsync(SessionRequestMessage request, VaspSession vaspSession);
 

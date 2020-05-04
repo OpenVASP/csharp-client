@@ -6,7 +6,6 @@ using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 using OpenVASP.Messaging.MessagingEngine;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
@@ -30,7 +29,6 @@ namespace OpenVASP.CSharpClient.Sessions
                 ITransportClient transportClient,
                 ISignService signService,
                 IOriginatorVaspCallbacks originatorVaspCallbacks)
-            //IEnsProvider ensProvider)
             : base(
                 originatorVasp,
                 beneficiaryPubSigningKey,
@@ -44,7 +42,6 @@ namespace OpenVASP.CSharpClient.Sessions
             this._beneficiaryPubHandshakeKey = beneficiaryPubHandshakeKey;
             this._pubEncryptionKey = pubEncryptionKey;
             this._originatorVaspCallbacks = originatorVaspCallbacks;
-            //this._ensProvider = ensProvider;
             this._originator = originator;
 
             _messageHandlerResolverBuilder.AddHandler(typeof(SessionReplyMessage),
@@ -79,9 +76,6 @@ namespace OpenVASP.CSharpClient.Sessions
         public async Task StartAsync()
         {
             StartTopicMonitoring();
-
-            //string beneficiaryVaspContractAddress = await _ensProvider.GetContractAddressByVaspCodeAsync(_beneficiaryVaan.VaspCode);
-            //await _ethereumRpc.GetVaspContractInfoAync()
 
             var sessionRequestMessage = SessionRequestMessage.Create(
                 this.SessionId,

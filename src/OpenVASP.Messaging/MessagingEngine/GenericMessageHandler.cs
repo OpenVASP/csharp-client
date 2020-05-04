@@ -6,19 +6,21 @@ using OpenVASP.Messaging.Messages;
 namespace OpenVASP.Messaging.MessagingEngine
 {
     public class GenericMessageHandler<TMessage> : MessageHandlerBase
+        where TMessage : class
     {
-        private Func<TMessage, CancellationToken, Task> messageProcessFunc;
+        private readonly Func<TMessage, CancellationToken, Task> _messageProcessFunc;
 
         public GenericMessageHandler(Func<TMessage, CancellationToken, Task> messageProcessFunc)
         {
-            this.messageProcessFunc = messageProcessFunc;
+            this._messageProcessFunc = messageProcessFunc;
         }
 
         public override async Task HandleMessageAsync(MessageBase message, CancellationToken cancellationToken)
         {
-            if (message is TMessage messageForProcessing)
+            var messageForProcessing = message as TMessage;
+            if (messageForProcessing != null)
             {
-                await messageProcessFunc(messageForProcessing, cancellationToken);
+                await _messageProcessFunc(messageForProcessing, cancellationToken);
             }
         }
     }

@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
-using OpenVASP.Tests;
 
 namespace OpenVASP.CSharpClient
 {
@@ -53,8 +51,11 @@ namespace OpenVASP.CSharpClient
         public async Task<string> CreateMessageFilterAsync(string topicHex, string privateKeyId = null,
             string symKeyId = null, string signingKey = null)
         {
-            var messageFilter = await _whisperRpc.CreateMessageFilterAsync(topicHex: topicHex, 
-                privateKeyId, symKeyId, signingKey);
+            var messageFilter = await _whisperRpc.CreateMessageFilterAsync(
+                topicHex,
+                privateKeyId,
+                symKeyId,
+                signingKey);
             return messageFilter;
         }
 

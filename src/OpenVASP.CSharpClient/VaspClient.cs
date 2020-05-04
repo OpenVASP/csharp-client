@@ -2,16 +2,13 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Cryptography;
-using OpenVASP.CSharpClient.Delegates;
 using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
-using OpenVASP.Tests.Client.Sessions;
 
 namespace OpenVASP.CSharpClient
 {
@@ -27,7 +24,6 @@ namespace OpenVASP.CSharpClient
         private readonly IEnsProvider _ensProvider;
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
-        private readonly IVaspCallbacks _vaspCallbacks;
         private readonly SessionsRequestsListener _sessionsRequestsListener;
 
         private readonly ConcurrentDictionary<string, BeneficiarySession> _beneficiarySessionsDict = 
@@ -36,19 +32,25 @@ namespace OpenVASP.CSharpClient
             new ConcurrentDictionary<string, OriginatorSession>();
 
         private readonly string _signatureKey;
-        private readonly ECDH_Key _handshakeKey;
 
         private readonly IOriginatorVaspCallbacks _originatorVaspCallbacks;
 
-        /// <summary>
-        /// Notifies about session termination.
-        /// </summary>
-        public event SessionTermination SessionTerminated;
-        
-        /// <summary>
-        /// Notifies about session creation.
-        /// </summary>
-        public event SessionCreation SessionCreated;
+        /// <summary>Notifies about session termination.</summary>
+        public event Func<SessionTerminationEvent, Task> SessionTerminated;
+        /// <summary>Notifies about session creation.</summary>
+        public event Func<SessionCreatedEvent, Task> SessionCreated;
+        /// <summary>Notifies about received session request message.</summary>
+        public event Func<SessionMessageEvent<SessionRequestMessage>, Task> SessionRequestMessageReceived;
+        /// <summary>Notifies about received session reply message.</summary>
+        public event Func<SessionMessageEvent<SessionReplyMessage>, Task> SessionReplyMessageReceived;
+        /// <summary>Notifies about received transfer reply message.</summary>
+        public event Func<SessionMessageEvent<TransferReplyMessage>, Task> TransferReplyMessageReceived;
+        /// <summary>Notifies about received transfer confirmation message.</summary>
+        public event Func<SessionMessageEvent<TransferConfirmationMessage>, Task> TransferConfirmationMessageReceived;
+        /// <summary>Notifies about received transfer request message.</summary>
+        public event Func<SessionMessageEvent<TransferRequestMessage>, Task> TransferRequestMessageReceived;
+        /// <summary>Notifies about received transfer dispatch message.</summary>
+        public event Func<SessionMessageEvent<TransferDispatchMessage>, Task> TransferDispatchMessageReceived;
 
         /// <summary>
         /// VASP Code
@@ -68,10 +70,8 @@ namespace OpenVASP.CSharpClient
             IEthereumRpc nodeClientEthereumRpc,
             IEnsProvider ensProvider,
             ITransportClient transportClient,
-            ISignService signService,
-            IVaspCallbacks vaspCallbacks)
+            ISignService signService)
         {
-            this._handshakeKey = handshakeKey;
             this._signatureKey = signatureHexKey;
             this.VaspCode = vaspCode;
             this.VaspInfo = vaspInfo;
@@ -79,16 +79,19 @@ namespace OpenVASP.CSharpClient
             this._ensProvider = ensProvider;
             this._transportClient = transportClient;
             this._signService = signService;
-            this._vaspCallbacks = vaspCallbacks;
 
             _originatorVaspCallbacks = new OriginatorVaspCallbacks(
                 async (message, originatorSession) =>
                 {
-                    await vaspCallbacks.SessionReplyMessageReceivedAsync(originatorSession.SessionId, message);
+                    await TriggerAsyncEvent(
+                        SessionReplyMessageReceived,
+                        new SessionMessageEvent<SessionReplyMessage>(originatorSession.SessionId, message));
                 },
                 async (message, originatorSession) =>
                 {
-                    await vaspCallbacks.TransferReplyMessageReceivedAsync(originatorSession.SessionId, message);
+                    await TriggerAsyncEvent(
+                        TransferReplyMessageReceived,
+                        new SessionMessageEvent<TransferReplyMessage>(originatorSession.SessionId, message));
                     if (message.Message.MessageCode != "1") //todo: handle properly.
                     {
                         await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
@@ -98,7 +101,9 @@ namespace OpenVASP.CSharpClient
                 },
                 async (message, originatorSession) =>
                 {
-                    await vaspCallbacks.TransferConfirmationMessageReceivedAsync(originatorSession.SessionId, message);
+                    await TriggerAsyncEvent(
+                        TransferConfirmationMessageReceived,
+                        new SessionMessageEvent<TransferConfirmationMessage>(originatorSession.SessionId, message));
                     await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
                         .SessionClosedTransferOccured);
                     originatorSession.Wait();
@@ -108,26 +113,34 @@ namespace OpenVASP.CSharpClient
                 async (request, currentSession) =>
                 {
                     _beneficiarySessionsDict[currentSession.SessionId] = currentSession as BeneficiarySession;
-                    await vaspCallbacks.SessionRequestMessageReceivedAsync(currentSession.SessionId, request);
+                    await TriggerAsyncEvent(
+                        SessionRequestMessageReceived,
+                        new SessionMessageEvent<SessionRequestMessage>(currentSession.SessionId, request));
                 },
                 async (request, currentSession) =>
                 {
-                    await vaspCallbacks.TransferRequestMessageReceivedAsync(currentSession.SessionId, request);
+                    await TriggerAsyncEvent(
+                        TransferRequestMessageReceived,
+                        new SessionMessageEvent<TransferRequestMessage>(currentSession.SessionId, request));
                 },
-                async (dispatch, currentSession)
-                    => await vaspCallbacks.TransferDispatchMessageReceivedAsync(currentSession.SessionId, dispatch));
-            
+                async (dispatch, currentSession) =>
+                {
+                    await TriggerAsyncEvent(
+                        TransferDispatchMessageReceived,
+                        new SessionMessageEvent<TransferDispatchMessage>(currentSession.SessionId, dispatch));
+                });
+
             _sessionsRequestsListener = new SessionsRequestsListener(handshakeKey, signatureHexKey, vaspCode,
                 vaspInfo, nodeClientEthereumRpc, transportClient, signService);
-            _sessionsRequestsListener.SessionCreated += BeneficiarySessionCreated;
+            _sessionsRequestsListener.SessionCreated += BeneficiarySessionCreatedAsync;
             _sessionsRequestsListener.StartTopicMonitoring(vaspMessageHandler);
         }
 
-        private void BeneficiarySessionCreated(object sender, BeneficiarySession session)
+        private Task BeneficiarySessionCreatedAsync(BeneficiarySession session)
         {
             _beneficiarySessionsDict.TryAdd(session.SessionId, session);
-            session.OnSessionTermination += this.ProcessSessionTermination;
-            this.NotifySessionCreated(session);
+            session.OnSessionTermination += this.ProcessSessionTerminationAsync;
+            return NotifySessionCreatedAsync(session);
         }
 
         public async Task<string> CreateSessionAsync(Originator originator, VirtualAssetsAccountNumber beneficiaryVaan)
@@ -154,8 +167,8 @@ namespace OpenVASP.CSharpClient
             await session.StartAsync();
 
             _originatorSessionsDict.TryAdd(session.SessionId, session);
-            session.OnSessionTermination += this.ProcessSessionTermination;
-            this.NotifySessionCreated(session);            
+            session.OnSessionTermination += this.ProcessSessionTerminationAsync;
+            await NotifySessionCreatedAsync(session);
 
             return session.SessionId;
         }
@@ -214,8 +227,7 @@ namespace OpenVASP.CSharpClient
             IEthereumRpc nodeClientEthereumRpc,
             IEnsProvider ensProvider,
             ISignService signService,
-            ITransportClient transportClient,
-            IVaspCallbacks vaspCallbacks)
+            ITransportClient transportClient)
         {
             var handshakeKey = ECDH_Key.ImportKey(handshakePrivateKeyHex);
 
@@ -227,8 +239,7 @@ namespace OpenVASP.CSharpClient
                 nodeClientEthereumRpc,
                 ensProvider,
                 transportClient,
-                signService,
-                vaspCallbacks);
+                signService);
 
             return vaspClient;
         }
@@ -251,21 +262,14 @@ namespace OpenVASP.CSharpClient
                 runningSession.Wait();
             }
 
-            //if (TransferDispatch != null)
-            //    foreach (var d in TransferDispatch.GetInvocationList())
-            //        TransferDispatch -= (d as Func<TransferDispatchMessage, TransferConfirmationMessage>);
-
-            //if (TransferRequest != null)
-            //    foreach (var d in TransferRequest.GetInvocationList())
-            //        TransferRequest -= (d as Func<TransferRequestMessage, TransferReplyMessage>);
-
-            if (SessionTerminated != null)
-                foreach (var d in SessionTerminated.GetInvocationList())
-                    SessionTerminated -= (d as SessionTermination);
-
-            if (SessionCreated != null)
-                foreach (var d in SessionCreated.GetInvocationList())
-                    SessionCreated -= (d as SessionCreation);
+            CleanupEvent(SessionTerminated);
+            CleanupEvent(SessionCreated);
+            CleanupEvent(SessionRequestMessageReceived);
+            CleanupEvent(SessionReplyMessageReceived);
+            CleanupEvent(TransferReplyMessageReceived);
+            CleanupEvent(TransferConfirmationMessageReceived);
+            CleanupEvent(TransferRequestMessageReceived);
+            CleanupEvent(TransferDispatchMessageReceived);
         }
 
         /// <summary>
@@ -280,16 +284,16 @@ namespace OpenVASP.CSharpClient
             return beneficiarySessions.Concat(originatorSessions).ToArray();
         }
 
-        private void NotifySessionCreated(VaspSession session)
+        private async Task NotifySessionCreatedAsync(VaspSession session)
         {
             var @event = new SessionCreatedEvent(session.SessionId);
 
-            SessionCreated?.Invoke(@event);
+            await TriggerAsyncEvent(SessionCreated, @event);
         }
 
-        private void ProcessSessionTermination(SessionTerminationEvent @event)
+        private async Task ProcessSessionTerminationAsync(SessionTerminationEvent @event)
         {
-            SessionTerminated?.Invoke(@event);
+            await TriggerAsyncEvent(SessionTerminated, @event);
 
             string sessionId = @event.SessionId;
             VaspSession vaspSession;
@@ -318,6 +322,26 @@ namespace OpenVASP.CSharpClient
             finally
             {
             }
+        }
+
+        private Task TriggerAsyncEvent<T>(Func<T, Task> eventDelegates, T @event)
+        {
+            if (eventDelegates == null)
+                return Task.CompletedTask;
+
+            var tasks = eventDelegates.GetInvocationList()
+                .OfType<Func<T, Task>>()
+                .Select(d => d(@event));
+            return Task.WhenAll(tasks);
+        }
+
+        private void CleanupEvent<T>(Func<T, Task> eventDelegates)
+        {
+            if (eventDelegates == null)
+                return;
+
+            foreach (var d in eventDelegates.GetInvocationList())
+                eventDelegates -= (d as Func<T, Task>);
         }
     }
 }

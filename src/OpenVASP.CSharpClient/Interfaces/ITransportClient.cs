@@ -2,7 +2,6 @@
 using System.Threading.Tasks;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
-using OpenVASP.Tests;
 
 namespace OpenVASP.CSharpClient.Interfaces
 {
@@ -14,7 +13,6 @@ namespace OpenVASP.CSharpClient.Interfaces
         /// <param name="privateKeyHex">privateKey in hex format</param>
         /// <returns>Registered KeyPairId</returns>
         Task<string> RegisterSymKeyAsync(string privateKeyHex);
-
 
         /// <summary>
         /// Private key

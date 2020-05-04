@@ -1,19 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using OpenVASP.CSharpClient;
-using OpenVASP.CSharpClient.Delegates;
 using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
-using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.CSharpClient.Utils;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 
-namespace OpenVASP.Tests.Client.Sessions
+namespace OpenVASP.CSharpClient.Sessions
 {
     //TODO: Add thread safety + state machine
     public abstract class VaspSession : IDisposable
@@ -38,7 +34,12 @@ namespace OpenVASP.Tests.Client.Sessions
         private bool _isActivated;
         private ProducerConsumerQueue _producerConsumerQueue;
 
-        public event SessionTermination OnSessionTermination;
+        public event Func<SessionTerminationEvent, Task> OnSessionTermination;
+
+        public string SessionId { get; protected set; }
+        public string SessionTopic => _sessionTopic;
+        public string CounterPartyTopic { get; protected set; }
+        public VaspSessionCounterparty CounterParty { get; protected set; } = new VaspSessionCounterparty();
 
         public VaspSession(
             VaspInformation vaspInfo,
@@ -57,16 +58,6 @@ namespace OpenVASP.Tests.Client.Sessions
             this._messageHandlerResolverBuilder = new MessageHandlerResolverBuilder();
             this._transportClient = transportClient;
             this._signService = signService;
-        }
-
-        public string SessionId { get; protected set; }
-
-        public string CounterPartyTopic { get; protected set; }
-        public VaspSessionCounterparty CounterParty { get; protected set; } = new VaspSessionCounterparty();
-
-        public string SessionTopic
-        {
-            get { return _sessionTopic; }
         }
 
         protected void StartTopicMonitoring()
@@ -141,7 +132,7 @@ namespace OpenVASP.Tests.Client.Sessions
                 await TerminateStrategyAsync(terminationMessageCode);
             }
 
-            NotifyAboutTermination();
+            await NotifyAboutTerminationAsync();
         }
 
         public void Dispose()
@@ -151,10 +142,10 @@ namespace OpenVASP.Tests.Client.Sessions
             if (OnSessionTermination != null)
             {
                 var invocationList = OnSessionTermination?.GetInvocationList();
-                
+
                 foreach (var item in invocationList)
                 {
-                    OnSessionTermination -= (SessionTermination)item;
+                    OnSessionTermination -= (Func<SessionTerminationEvent, Task>)item;
                 }
             }
 
@@ -170,7 +161,7 @@ namespace OpenVASP.Tests.Client.Sessions
                 terminationMessageCode,
                 _vaspInfo);
 
-            await _transportClient.SendAsync(new MessageEnvelope()
+            await _transportClient.SendAsync(new MessageEnvelope
             {
                 Topic = this.CounterPartyTopic,
                 SigningKey = _privateSigningKey,
@@ -179,11 +170,17 @@ namespace OpenVASP.Tests.Client.Sessions
             }, terminationMessage);
         }
 
-        private void NotifyAboutTermination()
+        private Task NotifyAboutTerminationAsync()
         {
             var @event = new SessionTerminationEvent(this.SessionId);
 
-            OnSessionTermination?.Invoke(@event);
+            if (OnSessionTermination == null)
+                return Task.CompletedTask;
+
+            var tasks = OnSessionTermination.GetInvocationList()
+                .OfType<Func<SessionTerminationEvent, Task>>()
+                .Select(d => d(@event));
+            return Task.WhenAll(tasks);
         }
     }
 }

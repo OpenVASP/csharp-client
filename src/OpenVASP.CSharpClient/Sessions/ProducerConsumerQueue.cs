@@ -41,7 +41,7 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             var cancellationToken = _cancellationTokenSource.Token;
             var factory = new TaskFactory();
-            _queueWorker = factory.StartNew(async (_) =>
+            _queueWorker = factory.StartNew(async _ =>
             {
                 do
                 {
@@ -51,7 +51,7 @@ namespace OpenVASP.CSharpClient.Sessions
                     {
                         try
                         {
-                            await _semaphore.WaitAsync();
+                            await _semaphore.WaitAsync(cancellationToken);
                             var item = _bufferQueue.Dequeue();
                             var handlers = _messageHandlerResolver.ResolveMessageHandlers(item.GetType());
 
