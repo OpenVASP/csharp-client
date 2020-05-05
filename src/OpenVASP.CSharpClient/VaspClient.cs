@@ -12,7 +12,6 @@ using OpenVASP.Messaging.Messages.Entities;
 
 namespace OpenVASP.CSharpClient
 {
-    //TODO: Add thread safety
     /// <summary>
     /// Vasp client is a main class in OpenVasp protocol.
     /// It start listening to incoming Session Requests as beneficiary Vasp.
@@ -96,7 +95,7 @@ namespace OpenVASP.CSharpClient
                     {
                         await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
                             .SessionClosedTransferOccured);
-                        originatorSession.Wait();
+                        await originatorSession.WaitAsync();
                     }
                 },
                 async (message, originatorSession) =>
@@ -106,7 +105,7 @@ namespace OpenVASP.CSharpClient
                         new SessionMessageEvent<TransferConfirmationMessage>(originatorSession.SessionId, message));
                     await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
                         .SessionClosedTransferOccured);
-                    originatorSession.Wait();
+                    await originatorSession.WaitAsync();
                 });
 
             IVaspMessageHandler vaspMessageHandler = new VaspMessageHandlerCallbacks(
@@ -139,7 +138,7 @@ namespace OpenVASP.CSharpClient
         private Task BeneficiarySessionCreatedAsync(BeneficiarySession session)
         {
             _beneficiarySessionsDict.TryAdd(session.SessionId, session);
-            session.OnSessionTermination += this.ProcessSessionTerminationAsync;
+            session.OnSessionTermination += ProcessSessionTerminationAsync;
             return NotifySessionCreatedAsync(session);
         }
 
@@ -167,7 +166,7 @@ namespace OpenVASP.CSharpClient
             await session.StartAsync();
 
             _originatorSessionsDict.TryAdd(session.SessionId, session);
-            session.OnSessionTermination += this.ProcessSessionTerminationAsync;
+            session.OnSessionTermination += ProcessSessionTerminationAsync;
             await NotifySessionCreatedAsync(session);
 
             return session.SessionId;
@@ -246,30 +245,24 @@ namespace OpenVASP.CSharpClient
 
         public void Dispose()
         {
-            _sessionsRequestsListener.Stop();
+             _sessionsRequestsListener.Stop();
 
-            var sessions = _beneficiarySessionsDict.Values.Cast<VaspSession>()
-                .Concat(_originatorSessionsDict.Values);
-            foreach (var session in sessions)
+            var tasks = new List<Task>();
+            foreach (var beneficiarySession in _beneficiarySessionsDict.Values)
             {
-                bool isOriginator = session is OriginatorSession;
-                var runningSession = session;
-                runningSession
-                    .TerminateAsync(isOriginator
-                        ? TerminationMessage.TerminationMessageCode.SessionClosedTransferCancelledByOriginator
-                        : TerminationMessage.TerminationMessageCode.SessionClosedTransferDeclinedByBeneficiaryVasp)
-                    .Wait();
-                runningSession.Wait();
+                beneficiarySession.OnSessionTermination -= ProcessSessionTerminationAsync;
+                tasks.Add(
+                    beneficiarySession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferDeclinedByBeneficiaryVasp)
+                        .ContinueWith(async _ => await beneficiarySession.WaitAsync()));
             }
-
-            CleanupEvent(SessionTerminated);
-            CleanupEvent(SessionCreated);
-            CleanupEvent(SessionRequestMessageReceived);
-            CleanupEvent(SessionReplyMessageReceived);
-            CleanupEvent(TransferReplyMessageReceived);
-            CleanupEvent(TransferConfirmationMessageReceived);
-            CleanupEvent(TransferRequestMessageReceived);
-            CleanupEvent(TransferDispatchMessageReceived);
+            foreach (var originatorSession in _originatorSessionsDict.Values)
+            {
+                originatorSession.OnSessionTermination -= ProcessSessionTerminationAsync;
+                tasks.Add(
+                    originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferCancelledByOriginator)
+                        .ContinueWith(async _ => await originatorSession.WaitAsync()));
+            }
+            Task.WhenAll(tasks).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -298,19 +291,15 @@ namespace OpenVASP.CSharpClient
             string sessionId = @event.SessionId;
             VaspSession vaspSession;
 
-            if (!_beneficiarySessionsDict.TryGetValue(sessionId, out var benSession))
+            if (!_beneficiarySessionsDict.TryRemove(sessionId, out var benSession))
             {
-                if (!_originatorSessionsDict.TryGetValue(sessionId, out var origSession))
-                {
+                if (!_originatorSessionsDict.TryRemove(sessionId, out var origSession))
                     return;
-                }
 
                 vaspSession = origSession;
-                _originatorSessionsDict.TryRemove(sessionId, out _);
             }
             else
             {
-                _beneficiarySessionsDict.TryRemove(sessionId, out _);
                 vaspSession = benSession;
             }
 
@@ -333,15 +322,6 @@ namespace OpenVASP.CSharpClient
                 .OfType<Func<T, Task>>()
                 .Select(d => d(@event));
             return Task.WhenAll(tasks);
-        }
-
-        private void CleanupEvent<T>(Func<T, Task> eventDelegates)
-        {
-            if (eventDelegates == null)
-                return;
-
-            foreach (var d in eventDelegates.GetInvocationList())
-                eventDelegates -= (d as Func<T, Task>);
         }
     }
 }

@@ -26,9 +26,9 @@ namespace OpenVASP.CSharpClient.Sessions
             StartWorker();
         }
 
-        public void Enqueue(MessageBase message)
+        public async Task EnqueueAsync(MessageBase message)
         {
-            _semaphore.Wait();
+            await _semaphore.WaitAsync();
 
             _bufferQueue.Enqueue(message);
 
@@ -83,9 +83,9 @@ namespace OpenVASP.CSharpClient.Sessions
 
             try
             {
-                _queueWorker.Wait();
+                _queueWorker.GetAwaiter().GetResult();
             }
-            catch
+            catch (Exception e)
             {
                 //TODO: process exception
                 // ignored

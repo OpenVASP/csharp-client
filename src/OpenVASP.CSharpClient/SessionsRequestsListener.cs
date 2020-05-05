@@ -142,10 +142,6 @@ namespace OpenVASP.CSharpClient
         public void Stop()
         {
             _cancellationTokenSource.Cancel();
-
-            if (SessionCreated != null)
-                foreach (var d in SessionCreated.GetInvocationList())
-                    SessionCreated -= (d as Func<BeneficiarySession, Task>);
         }
 
         public void Dispose()

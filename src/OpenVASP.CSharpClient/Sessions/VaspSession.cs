@@ -67,10 +67,9 @@ namespace OpenVASP.CSharpClient.Sessions
                 if (!this._isActivated)
                 {
                     var taskFactory = new TaskFactory(_cancellationTokenSource.Token);
-                    this._isActivated = true;
                     var cancellationToken = _cancellationTokenSource.Token;
 
-                    _task = taskFactory.StartNew(async (_) =>
+                    _task = taskFactory.StartNew(async _ =>
                     {
                         _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
                         var messageFilter = await _transportClient.CreateMessageFilterAsync(topicHex: _sessionTopic, 
@@ -94,7 +93,7 @@ namespace OpenVASP.CSharpClient.Sessions
                                         continue;
                                     }
 
-                                    _producerConsumerQueue.Enqueue(message.Message);
+                                    await _producerConsumerQueue.EnqueueAsync(message.Message);
                                 }
 
                                 continue;
@@ -105,6 +104,8 @@ namespace OpenVASP.CSharpClient.Sessions
 
                         } while (!cancellationToken.IsCancellationRequested);
                     }, cancellationToken, TaskCreationOptions.LongRunning);
+
+                    this._isActivated = true;
                 }
                 else
                 {
@@ -113,17 +114,16 @@ namespace OpenVASP.CSharpClient.Sessions
             }
         }
 
-        public void Wait()
+        public async Task WaitAsync()
         {
             try
             {
-                _task.Wait();
+                await _task;
             }
             catch (Exception e)
             {
             }
         }
-
 
         public virtual async Task TerminateAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)
         {
@@ -138,16 +138,6 @@ namespace OpenVASP.CSharpClient.Sessions
         public void Dispose()
         {
             _cancellationTokenSource?.Cancel();
-
-            if (OnSessionTermination != null)
-            {
-                var invocationList = OnSessionTermination?.GetInvocationList();
-
-                foreach (var item in invocationList)
-                {
-                    OnSessionTermination -= (Func<SessionTerminationEvent, Task>)item;
-                }
-            }
 
             _task?.Dispose();
             _producerConsumerQueue?.Dispose();
