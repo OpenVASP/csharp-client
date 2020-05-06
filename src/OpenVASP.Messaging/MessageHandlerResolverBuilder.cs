@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using OpenVASP.Messaging.MessagingEngine;
 
 namespace OpenVASP.Messaging
@@ -13,9 +15,10 @@ namespace OpenVASP.Messaging
             _registeredHandlers = new List<(Type type, MessageHandlerBase handler)>();
         }
 
-        public MessageHandlerResolverBuilder AddHandler(Type type, MessageHandlerBase handler)
+        public MessageHandlerResolverBuilder AddHandler<TMessage>(Func<TMessage, CancellationToken, Task> messageProcessFunc)
+            where TMessage : class
         {
-            _registeredHandlers.Add((type, handler));
+            _registeredHandlers.Add((typeof(TMessage), new GenericMessageHandler<TMessage>(messageProcessFunc)));
 
             return this;
         }

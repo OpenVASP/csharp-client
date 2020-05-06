@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Cryptography;
-using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging.Messages;
@@ -14,7 +13,7 @@ namespace OpenVASP.CSharpClient
     /// <summary>
     /// Listener which would process incoming beneficiary session request messages
     /// </summary>
-    class SessionsRequestsListener : IDisposable
+    internal class SessionsRequestsListener : IDisposable
     {
         private bool _hasStartedListening;
         private Task _listener;
@@ -26,9 +25,7 @@ namespace OpenVASP.CSharpClient
         private readonly IEthereumRpc _ethereumRpc;
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
-
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-
         private readonly object _lock = new object();
 
         /// <summary>
@@ -45,13 +42,13 @@ namespace OpenVASP.CSharpClient
             ITransportClient transportClient,
             ISignService signService)
         {
-            this._handshakeKey = handshakeKey;
-            this._signatureKey = signatureKey;
-            this._vaspCode = vaspCode;
-            this._vaspInfo = vaspInfo;
-            this._ethereumRpc = ethereumRpc;
-            this._transportClient = transportClient;
-            this._signService = signService;
+            _handshakeKey = handshakeKey;
+            _signatureKey = signatureKey;
+            _vaspCode = vaspCode;
+            _vaspInfo = vaspInfo;
+            _ethereumRpc = ethereumRpc;
+            _transportClient = transportClient;
+            _signService = signService;
         }
 
         /// <summary>
@@ -69,63 +66,60 @@ namespace OpenVASP.CSharpClient
                     var token = _cancellationTokenSource.Token;
                     var taskFactory = new TaskFactory(_cancellationTokenSource.Token);
 
-                    this._listener = taskFactory.StartNew(async (_) =>
+                    _listener = taskFactory.StartNew(async _ =>
                     {
-                        var privateKeyId = await _transportClient.RegisterKeyPairAsync(this._handshakeKey.PrivateKey);
+                        var privateKeyId = await _transportClient.RegisterKeyPairAsync(_handshakeKey.PrivateKey);
                         string messageFilter = await _transportClient.CreateMessageFilterAsync(_vaspCode.Code, privateKeyId);
 
                         do
                         {
                             var sessionRequestMessages = await _transportClient.GetSessionMessagesAsync(messageFilter);
-
-                            if (sessionRequestMessages != null &&
-                                sessionRequestMessages.Count != 0)
+                            if (sessionRequestMessages == null || sessionRequestMessages.Count == 0)
                             {
-                                foreach (var message in sessionRequestMessages)
-                                {
-                                    var sessionRequestMessage = message.Message as SessionRequestMessage;
-
-                                    if (sessionRequestMessage == null)
-                                        continue;
-
-                                    var originatorVaspContractInfo =
-                                        await _ethereumRpc.GetVaspContractInfoAync(sessionRequestMessage.Vasp
-                                            .VaspIdentity);
-
-                                    if (!_signService.VerifySign(message.Payload, message.Signature,
-                                        originatorVaspContractInfo.SigningKey))
-                                        continue;
-
-                                    var sharedSecret =
-                                        this._handshakeKey.GenerateSharedSecretHex(sessionRequestMessage.HandShake
-                                            .EcdhPubKey);
-
-                                    var session = new BeneficiarySession(
-                                        this._vaspInfo,
-                                        sessionRequestMessage.Message.SessionId,
-                                        sessionRequestMessage.HandShake.TopicA,
-                                        originatorVaspContractInfo.SigningKey,
-                                        sharedSecret,
-                                        this._signatureKey,
-                                        messageHandler,
-                                        _transportClient,
-                                        _signService);
-
-                                    await messageHandler.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
-
-                                    if (SessionCreated != null)
-                                    {
-                                        var tasks = SessionCreated.GetInvocationList()
-                                            .OfType<Func<BeneficiarySession, Task>>()
-                                            .Select(d => d(session));
-                                        await Task.WhenAll(tasks);
-                                    }
-                                }
-
+                                await Task.Delay(5000, token);
                                 continue;
                             }
 
-                            await Task.Delay(5000, token);
+                            foreach (var message in sessionRequestMessages)
+                            {
+                                var sessionRequestMessage = message.Message as SessionRequestMessage;
+
+                                if (sessionRequestMessage == null)
+                                    continue;
+
+                                var originatorVaspContractInfo =
+                                    await _ethereumRpc.GetVaspContractInfoAync(sessionRequestMessage.Vasp
+                                        .VaspIdentity);
+
+                                if (!_signService.VerifySign(message.Payload, message.Signature,
+                                    originatorVaspContractInfo.SigningKey))
+                                    continue;
+
+                                var sharedSecret =
+                                    _handshakeKey.GenerateSharedSecretHex(
+                                        sessionRequestMessage.HandShake.EcdhPubKey);
+
+                                var session = new BeneficiarySession(
+                                    _vaspInfo,
+                                    sessionRequestMessage.Message.SessionId,
+                                    sessionRequestMessage.HandShake.TopicA,
+                                    originatorVaspContractInfo.SigningKey,
+                                    sharedSecret,
+                                    _signatureKey,
+                                    messageHandler,
+                                    _transportClient,
+                                    _signService);
+
+                                await messageHandler.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
+
+                                if (SessionCreated != null)
+                                {
+                                    var tasks = SessionCreated.GetInvocationList()
+                                        .OfType<Func<BeneficiarySession, Task>>()
+                                        .Select(d => d(session));
+                                    await Task.WhenAll(tasks);
+                                }
+                            }
                         } while (!token.IsCancellationRequested);
                     }, token, TaskCreationOptions.LongRunning);
                 }

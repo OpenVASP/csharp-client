@@ -1,13 +1,13 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
-using OpenVASP.Messaging.MessagingEngine;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
-    public class BeneficiarySession : VaspSession
+    internal class BeneficiarySession : VaspSession
     {
         private readonly IVaspMessageHandler _vaspMessageHandler;
 
@@ -29,35 +29,22 @@ namespace OpenVASP.CSharpClient.Sessions
                 transportClient, 
                 signService)
         {
-            this.SessionId = sessionId;
-            this.CounterPartyTopic = counterpartyTopic;
-            this._vaspMessageHandler = vaspMessageHandler;
+            _vaspMessageHandler = vaspMessageHandler;
 
-            _messageHandlerResolverBuilder.AddHandler(typeof(TransferRequestMessage), new TransferRequestMessageHandler(
-                async (message, cancellationToken) =>
-                {
-                    await _vaspMessageHandler.TransferRequestHandlerAsync(message, this);
-                }));
+            SessionId = sessionId;
+            CounterPartyTopic = counterpartyTopic;
 
-            _messageHandlerResolverBuilder.AddHandler(typeof(TransferDispatchMessage), new TransferDispatchMessageHandler(
-                async (message, cancellationToken) =>
-                {
-                    await _vaspMessageHandler.TransferDispatchHandlerAsync(message, this);
-                }));
-
-            _messageHandlerResolverBuilder.AddHandler(typeof(TerminationMessage),
-                new TerminationMessageHandler(async (message, token) =>
-                {
-                    _hasReceivedTerminationMessage = true;
-                    await TerminateAsync(message.GetMessageCode());
-                }));
+            _messageHandlerResolverBuilder
+                .AddHandler<TransferRequestMessage>(ProcessTransferRequestMessageAsync)
+                .AddHandler<TransferDispatchMessage>(ProcessTransferDispatchMessageAsync)
+                .AddHandler<TerminationMessage>(ProcessTerminationMessageAsync);
         }
 
         public async Task SendTransferReplyMessageAsync(TransferReplyMessage message)
         {
             await _transportClient.SendAsync(new MessageEnvelope
             {
-                Topic = this.CounterPartyTopic,
+                Topic = CounterPartyTopic,
                 SigningKey = _privateSigningKey,
                 EncryptionType = EncryptionType.Symmetric,
                 EncryptionKey = _sharedSymKeyId
@@ -68,7 +55,7 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             await _transportClient.SendAsync(new MessageEnvelope
             {
-                Topic = this.CounterPartyTopic,
+                Topic = CounterPartyTopic,
                 SigningKey = _privateSigningKey,
                 EncryptionType = EncryptionType.Symmetric,
                 EncryptionKey = _sharedSymKeyId
@@ -77,19 +64,35 @@ namespace OpenVASP.CSharpClient.Sessions
 
         public async Task StartAsync(SessionReplyMessage.SessionReplyMessageCode code)
         {
-            var reply = SessionReplyMessage.Create(this.SessionId, code, new HandShakeResponse(this.SessionTopic), this._vaspInfo);
-            this.CounterParty.VaspInfo = reply.Vasp;
+            var reply = SessionReplyMessage.Create(SessionId, code, new HandShakeResponse(SessionTopic), _vaspInfo);
+            CounterParty.VaspInfo = reply.Vasp;
             _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
 
             await _transportClient.SendAsync(new MessageEnvelope
             {
                 EncryptionKey = _sharedSymKeyId,
                 EncryptionType = EncryptionType.Symmetric,
-                Topic = this.CounterPartyTopic,
-                SigningKey = this._privateSigningKey
+                Topic = CounterPartyTopic,
+                SigningKey = _privateSigningKey
             }, reply);
 
             StartTopicMonitoring();
+        }
+
+        private Task ProcessTransferRequestMessageAsync(TransferRequestMessage message, CancellationToken token)
+        {
+            return _vaspMessageHandler.TransferRequestHandlerAsync(message, this);
+        }
+
+        private Task ProcessTransferDispatchMessageAsync(TransferDispatchMessage message, CancellationToken token)
+        {
+            return _vaspMessageHandler.TransferDispatchHandlerAsync(message, this);
+        }
+
+        private Task ProcessTerminationMessageAsync(TerminationMessage message, CancellationToken token)
+        {
+            _hasReceivedTerminationMessage = true;
+            return TerminateAsync(message.GetMessageCode());
         }
     }
 }

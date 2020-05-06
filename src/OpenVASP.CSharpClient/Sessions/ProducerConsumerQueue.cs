@@ -20,8 +20,8 @@ namespace OpenVASP.CSharpClient.Sessions
 
         public ProducerConsumerQueue(MessageHandlerResolver messageHandlerResolver, CancellationToken cancellationToken)
         {
-            this._messageHandlerResolver = messageHandlerResolver;
-            this._cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _messageHandlerResolver = messageHandlerResolver;
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
             StartWorker();
         }

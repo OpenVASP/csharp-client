@@ -14,32 +14,31 @@ namespace OpenVASP.CSharpClient.Sessions
     //TODO: Add thread safety + state machine
     public abstract class VaspSession : IDisposable
     {
-        // ReSharper disable once NotAccessedField.Global
-        protected readonly CancellationTokenSource _cancellationTokenSource;
-        protected readonly string _sessionTopic;
-        protected readonly string _sharedKey;
-        protected readonly string _privateSigningKey;
-        protected readonly string _counterPartyPubSigningKey;
-        protected readonly MessageHandlerResolverBuilder _messageHandlerResolverBuilder;
-        protected readonly VaspInformation _vaspInfo;
-        protected readonly ITransportClient _transportClient;
-        protected readonly ISignService _signService;
-
         private readonly object _lock = new object();
-
-        protected bool _hasReceivedTerminationMessage = false;
-        protected string _sharedSymKeyId;
-        protected Task _task;
+        private readonly CancellationTokenSource _cancellationTokenSource;
+        private readonly string _counterPartyPubSigningKey;
+        private readonly ISignService _signService;
 
         private bool _isActivated;
         private ProducerConsumerQueue _producerConsumerQueue;
+        private Task _task;
+
+        protected readonly string _sessionTopic;
+        protected readonly string _sharedKey;
+        protected readonly string _privateSigningKey;
+        protected readonly MessageHandlerResolverBuilder _messageHandlerResolverBuilder;
+        protected readonly VaspInformation _vaspInfo;
+        protected readonly ITransportClient _transportClient;
+
+        protected bool _hasReceivedTerminationMessage = false;
+        protected string _sharedSymKeyId;
 
         public event Func<SessionTerminationEvent, Task> OnSessionTermination;
 
         public string SessionId { get; protected set; }
         public string SessionTopic => _sessionTopic;
         public string CounterPartyTopic { get; protected set; }
-        public VaspSessionCounterparty CounterParty { get; protected set; } = new VaspSessionCounterparty();
+        public VaspSessionCounterparty CounterParty { get; } = new VaspSessionCounterparty();
 
         public VaspSession(
             VaspInformation vaspInfo,
@@ -49,22 +48,22 @@ namespace OpenVASP.CSharpClient.Sessions
             ITransportClient transportClient,
             ISignService signService)
         {
-            this._vaspInfo = vaspInfo;
-            this._sessionTopic = TopicGenerator.GenerateSessionTopic();
-            this._cancellationTokenSource = new CancellationTokenSource();
-            this._sharedKey = sharedEncryptionKey;
-            this._privateSigningKey = privateSigningKey;
-            this._counterPartyPubSigningKey = counterPartyPubSigningKey;
-            this._messageHandlerResolverBuilder = new MessageHandlerResolverBuilder();
-            this._transportClient = transportClient;
-            this._signService = signService;
+            _vaspInfo = vaspInfo;
+            _sessionTopic = TopicGenerator.GenerateSessionTopic();
+            _cancellationTokenSource = new CancellationTokenSource();
+            _sharedKey = sharedEncryptionKey;
+            _privateSigningKey = privateSigningKey;
+            _counterPartyPubSigningKey = counterPartyPubSigningKey;
+            _messageHandlerResolverBuilder = new MessageHandlerResolverBuilder();
+            _transportClient = transportClient;
+            _signService = signService;
         }
 
         protected void StartTopicMonitoring()
         {
             lock (_lock)
             {
-                if (!this._isActivated)
+                if (!_isActivated)
                 {
                     var taskFactory = new TaskFactory(_cancellationTokenSource.Token);
                     var cancellationToken = _cancellationTokenSource.Token;
@@ -72,10 +71,9 @@ namespace OpenVASP.CSharpClient.Sessions
                     _task = taskFactory.StartNew(async _ =>
                     {
                         _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
-                        var messageFilter = await _transportClient.CreateMessageFilterAsync(topicHex: _sessionTopic, 
-                            symKeyId: _sharedSymKeyId);
+                        var messageFilter = await _transportClient.CreateMessageFilterAsync(_sessionTopic, symKeyId: _sharedSymKeyId);
                         var messageHandlerResolver = _messageHandlerResolverBuilder.Build();
-                        this._producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
+                        _producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
 
                         do
                         {
@@ -86,7 +84,9 @@ namespace OpenVASP.CSharpClient.Sessions
                             {
                                 foreach (var message in messages)
                                 {
-                                    if (!_signService.VerifySign(message.Payload, message.Signature,
+                                    if (!_signService.VerifySign(
+                                        message.Payload,
+                                        message.Signature,
                                         _counterPartyPubSigningKey))
                                     {
                                         //TODO: Log this
@@ -105,7 +105,7 @@ namespace OpenVASP.CSharpClient.Sessions
                         } while (!cancellationToken.IsCancellationRequested);
                     }, cancellationToken, TaskCreationOptions.LongRunning);
 
-                    this._isActivated = true;
+                    _isActivated = true;
                 }
                 else
                 {
@@ -125,7 +125,7 @@ namespace OpenVASP.CSharpClient.Sessions
             }
         }
 
-        public virtual async Task TerminateAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)
+        public async Task TerminateAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)
         {
             if (!_hasReceivedTerminationMessage)
             {
@@ -144,16 +144,16 @@ namespace OpenVASP.CSharpClient.Sessions
             _cancellationTokenSource?.Dispose();
         }
 
-        protected virtual async Task TerminateStrategyAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)
+        private async Task TerminateStrategyAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)
         {
             var terminationMessage = TerminationMessage.Create(
-                this.SessionId,
+                SessionId,
                 terminationMessageCode,
                 _vaspInfo);
 
             await _transportClient.SendAsync(new MessageEnvelope
             {
-                Topic = this.CounterPartyTopic,
+                Topic = CounterPartyTopic,
                 SigningKey = _privateSigningKey,
                 EncryptionType = EncryptionType.Symmetric,
                 EncryptionKey = _sharedSymKeyId
@@ -162,7 +162,7 @@ namespace OpenVASP.CSharpClient.Sessions
 
         private Task NotifyAboutTerminationAsync()
         {
-            var @event = new SessionTerminationEvent(this.SessionId);
+            var @event = new SessionTerminationEvent(SessionId);
 
             if (OnSessionTermination == null)
                 return Task.CompletedTask;

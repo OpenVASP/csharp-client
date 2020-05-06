@@ -7,11 +7,16 @@ namespace OpenVASP.Messaging.Messages
 {
     public class SessionRequestMessage : MessageBase
     {
+        [JsonProperty("handshake")]
+        public HandShakeRequest HandShake { get; private set; }
+
+        [JsonProperty("vasp")]
+        public VaspInformation Vasp { get; private set; }
+
         public static SessionRequestMessage Create(Message message, HandShakeRequest handshake, VaspInformation vasp)
         {
             return new SessionRequestMessage
             {
-                //MessageType = MessageType.SessionRequest,
                 Message = message,
                 HandShake = handshake,
                 Vasp = vasp
@@ -27,11 +32,5 @@ namespace OpenVASP.Messaging.Messages
                 Vasp = vasp
             };
         }
-
-        [JsonProperty("handshake")]
-        public HandShakeRequest HandShake { get; private set; }
-
-        [JsonProperty("vasp")]
-        public VaspInformation Vasp { get; private set; }
     }
 }

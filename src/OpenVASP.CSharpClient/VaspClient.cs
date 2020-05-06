@@ -71,13 +71,13 @@ namespace OpenVASP.CSharpClient
             ITransportClient transportClient,
             ISignService signService)
         {
-            this._signatureKey = signatureHexKey;
-            this.VaspCode = vaspCode;
-            this.VaspInfo = vaspInfo;
-            this._ethereumRpc = nodeClientEthereumRpc;
-            this._ensProvider = ensProvider;
-            this._transportClient = transportClient;
-            this._signService = signService;
+            _signatureKey = signatureHexKey;
+            VaspCode = vaspCode;
+            VaspInfo = vaspInfo;
+            _ethereumRpc = nodeClientEthereumRpc;
+            _ensProvider = ensProvider;
+            _transportClient = transportClient;
+            _signService = signService;
 
             _originatorVaspCallbacks = new OriginatorVaspCallbacks(
                 async (message, originatorSession) =>
@@ -152,13 +152,13 @@ namespace OpenVASP.CSharpClient
 
             var session = new OriginatorSession(
                 originator,
-                this.VaspInfo,
+                VaspInfo,
                 beneficiaryVaan,
                 contractInfo.SigningKey,
                 contractInfo.HandshakeKey,
                 sharedKey,
                 sessionKey.PublicKey,
-                this._signatureKey,
+                _signatureKey,
                 _transportClient,
                 _signService,
                 _originatorVaspCallbacks);
@@ -174,48 +174,67 @@ namespace OpenVASP.CSharpClient
 
         public async Task SessionReplyAsync(string sessionId, SessionReplyMessage.SessionReplyMessageCode code)
         {
-            await _beneficiarySessionsDict[sessionId]
-                .StartAsync(code);
+            if (!_beneficiarySessionsDict.TryGetValue(sessionId, out var session))
+                throw new ArgumentException($"Beneficiary session with id {sessionId} not found");
+
+            await session.StartAsync(code);
         }
 
-        public async Task TransferRequestAsync(string sessionId, string beneficiaryName, VirtualAssetType type,
+        public async Task TransferRequestAsync(
+            string sessionId,
+            string beneficiaryName,
+            VirtualAssetType type,
             decimal amount)
         {
-            await _originatorSessionsDict[sessionId]
-                .TransferRequestAsync(
-                    new TransferInstruction
+            if (!_originatorSessionsDict.TryGetValue(sessionId, out var session))
+                throw new ArgumentException($"Originator session with id {sessionId} not found");
+
+            await session.TransferRequestAsync(
+                new TransferInstruction
+                {
+                    VirtualAssetTransfer = new VirtualAssetTransfer
                     {
-                        VirtualAssetTransfer = new VirtualAssetTransfer
-                        {
-                            TransferType = TransferType.BlockchainTransfer,
-                            VirtualAssetType = type,
-                            TransferAmount = amount
-                        },
-                        BeneficiaryName = beneficiaryName
-                    });
+                        TransferType = TransferType.BlockchainTransfer,
+                        VirtualAssetType = type,
+                        TransferAmount = amount
+                    },
+                    BeneficiaryName = beneficiaryName
+                });
         }
 
         public async Task TransferReplyAsync(string sessionId, TransferReplyMessage message)
         {
-            await _beneficiarySessionsDict[sessionId].SendTransferReplyMessageAsync(message);
+            if (!_beneficiarySessionsDict.TryGetValue(sessionId, out var session))
+                throw new ArgumentException($"Beneficiary session with id {sessionId} not found");
+
+            await session.SendTransferReplyMessageAsync(message);
         }
 
-        public async Task TransferDispatchAsync(string sessionId, TransferReply transferReply, string transactionHash,
-            string sendingAddress, string beneficiaryName)
+        public async Task TransferDispatchAsync(
+            string sessionId,
+            TransferReply transferReply,
+            string transactionHash,
+            string sendingAddress,
+            string beneficiaryName)
         {
-            await _originatorSessionsDict[sessionId]
-                .TransferDispatchAsync(
-                    transferReply,
-                    new Transaction(
-                        transactionHash,
-                        DateTime.UtcNow,
-                        sendingAddress),
-                    beneficiaryName);
+            if (!_originatorSessionsDict.TryGetValue(sessionId, out var session))
+                throw new ArgumentException($"Originator session with id {sessionId} not found");
+
+            await session.TransferDispatchAsync(
+                transferReply,
+                new Transaction(
+                    transactionHash,
+                    DateTime.UtcNow,
+                    sendingAddress),
+                beneficiaryName);
         }
 
         public async Task TransferConfirmAsync(string sessionId, TransferConfirmationMessage message)
         {
-            await _beneficiarySessionsDict[sessionId].SendTransferConfirmationMessageAsync(message);
+            if (!_beneficiarySessionsDict.TryGetValue(sessionId, out var session))
+                throw new ArgumentException($"Beneficiary session with id {sessionId} not found");
+
+            await session.SendTransferConfirmationMessageAsync(message);
         }
 
         public static VaspClient Create(
@@ -245,7 +264,7 @@ namespace OpenVASP.CSharpClient
 
         public void Dispose()
         {
-             _sessionsRequestsListener.Stop();
+            _sessionsRequestsListener.Stop();
 
             var tasks = new List<Task>();
             foreach (var beneficiarySession in _beneficiarySessionsDict.Values)
@@ -308,7 +327,7 @@ namespace OpenVASP.CSharpClient
             {
                 vaspSession.Dispose();
             }
-            finally
+            catch (Exception e)
             {
             }
         }
