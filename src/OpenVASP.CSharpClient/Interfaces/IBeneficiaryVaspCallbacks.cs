@@ -4,7 +4,7 @@ using OpenVASP.Messaging.Messages;
 
 namespace OpenVASP.CSharpClient.Interfaces
 {
-    public interface IVaspMessageHandler
+    internal interface IBeneficiaryVaspCallbacks
     {
         /// <summary>
         /// Authorize originator VASP.

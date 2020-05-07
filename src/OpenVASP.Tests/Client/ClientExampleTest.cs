@@ -210,7 +210,7 @@ namespace OpenVASP.Tests.Client
             await originator.CreateSessionAsync(originatorDoc, beneficiaryVaan);
 
             await Task.WhenAny(
-                Task.Delay(TimeSpan.FromMinutes(1)),
+                Task.Delay(TimeSpan.FromMinutes(2)),
                 Task.WhenAll(
                     sessionRequestSemaphore.WaitAsync(),
                     sessionReplySemaphore.WaitAsync(),
@@ -219,12 +219,12 @@ namespace OpenVASP.Tests.Client
                     transferDispatchSemaphore.WaitAsync(),
                     transferConfirmSemaphore.WaitAsync()));
 
-            Assert.True(sessionRequestReceived);
-            Assert.True(sessionReplyReceived);
-            Assert.True(transferRequestReceived);
-            Assert.True(transferReplyReceived);
-            Assert.True(transferDispatchReceived);
-            Assert.True(transferConfirmReceived);
+            Assert.True(sessionRequestReceived, "Session request message was not delivered");
+            Assert.True(sessionReplyReceived, "Session reply message was not delivered");
+            Assert.True(transferRequestReceived, "Transfer request message was not delivered");
+            Assert.True(transferReplyReceived, "Transfer reply message was not delivered");
+            Assert.True(transferDispatchReceived, "Transfer dispatch message was not delivered");
+            Assert.True(transferConfirmReceived, "Transfer confirm message was not delivered");
         }
     }
 }

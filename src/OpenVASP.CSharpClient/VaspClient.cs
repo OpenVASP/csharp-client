@@ -80,35 +80,33 @@ namespace OpenVASP.CSharpClient
             _signService = signService;
 
             _originatorVaspCallbacks = new OriginatorVaspCallbacks(
-                async (message, originatorSession) =>
+                async (message, session) =>
                 {
                     await TriggerAsyncEvent(
                         SessionReplyMessageReceived,
-                        new SessionMessageEvent<SessionReplyMessage>(originatorSession.SessionId, message));
+                        new SessionMessageEvent<SessionReplyMessage>(session.SessionId, message));
                 },
-                async (message, originatorSession) =>
+                async (message, session) =>
                 {
                     await TriggerAsyncEvent(
                         TransferReplyMessageReceived,
-                        new SessionMessageEvent<TransferReplyMessage>(originatorSession.SessionId, message));
+                        new SessionMessageEvent<TransferReplyMessage>(session.SessionId, message));
                     if (message.Message.MessageCode != "1") //todo: handle properly.
                     {
-                        await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
-                            .SessionClosedTransferOccured);
-                        await originatorSession.WaitAsync();
+                        await session.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
+                        await session.WaitAsync();
                     }
                 },
-                async (message, originatorSession) =>
+                async (message, session) =>
                 {
                     await TriggerAsyncEvent(
                         TransferConfirmationMessageReceived,
-                        new SessionMessageEvent<TransferConfirmationMessage>(originatorSession.SessionId, message));
-                    await originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode
-                        .SessionClosedTransferOccured);
-                    await originatorSession.WaitAsync();
+                        new SessionMessageEvent<TransferConfirmationMessage>(session.SessionId, message));
+                    await session.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
+                    await session.WaitAsync();
                 });
 
-            IVaspMessageHandler vaspMessageHandler = new VaspMessageHandlerCallbacks(
+            IBeneficiaryVaspCallbacks beneficiaryVaspCallbacks = new BeneficiaryVaspCallbacks(
                 async (request, currentSession) =>
                 {
                     _beneficiarySessionsDict[currentSession.SessionId] = currentSession as BeneficiarySession;
@@ -132,7 +130,7 @@ namespace OpenVASP.CSharpClient
             _sessionsRequestsListener = new SessionsRequestsListener(handshakeKey, signatureHexKey, vaspCode,
                 vaspInfo, nodeClientEthereumRpc, transportClient, signService);
             _sessionsRequestsListener.SessionCreated += BeneficiarySessionCreatedAsync;
-            _sessionsRequestsListener.StartTopicMonitoring(vaspMessageHandler);
+            _sessionsRequestsListener.StartTopicMonitoring(beneficiaryVaspCallbacks);
         }
 
         private Task BeneficiarySessionCreatedAsync(BeneficiarySession session)

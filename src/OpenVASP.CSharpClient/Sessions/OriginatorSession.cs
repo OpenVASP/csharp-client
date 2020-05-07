@@ -58,7 +58,7 @@ namespace OpenVASP.CSharpClient.Sessions
 
             var sessionRequestMessage = SessionRequestMessage.Create(
                 SessionId,
-                new HandShakeRequest(_sessionTopic, _pubEncryptionKey),
+                new HandShakeRequest(SessionTopic, _pubEncryptionKey),
                 _vaspInfo);
 
             await _transportClient.SendAsync(new MessageEnvelope()
@@ -126,13 +126,6 @@ namespace OpenVASP.CSharpClient.Sessions
         private Task ProcessTransferConfirmationMessageAsync(TransferConfirmationMessage message, CancellationToken token)
         {
             return _originatorVaspCallbacks.TransferConfirmationMessageHandlerAsync(message, this);
-        }
-
-        private Task ProcessTerminationMessageAsync(TerminationMessage message, CancellationToken token)
-        {
-            _hasReceivedTerminationMessage = true;
-
-            return TerminateAsync(message.GetMessageCode());
         }
     }
 }

@@ -1,20 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 
+[assembly: InternalsVisibleTo("OpenVASP.Tests")]
+
 namespace OpenVASP.CSharpClient.Sessions
 {
-    public class ProducerConsumerQueue : IDisposable
+    internal class ProducerConsumerQueue : IDisposable
     {
         private readonly MessageHandlerResolver _messageHandlerResolver;
-        private readonly Queue<MessageBase> _bufferQueue = new Queue<MessageBase>();
-        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly AutoResetEvent _manual = new AutoResetEvent(false);
+        private readonly ChannelWriter<MessageBase> _writer;
+        private readonly ChannelReader<MessageBase> _reader;
 
         private Task _queueWorker;
 
@@ -22,19 +23,18 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             _messageHandlerResolver = messageHandlerResolver;
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var channel = Channel.CreateUnbounded<MessageBase>();
+            _writer = channel.Writer;
+            _reader = channel.Reader;
 
             StartWorker();
         }
 
-        public async Task EnqueueAsync(MessageBase message)
+        public void Enqueue(MessageBase message)
         {
-            await _semaphore.WaitAsync();
-
-            _bufferQueue.Enqueue(message);
-
-            _manual.Set();
-
-            _semaphore.Release();
+            while (!_writer.TryWrite(message))
+            {
+            }
         }
 
         private void StartWorker()
@@ -45,30 +45,21 @@ namespace OpenVASP.CSharpClient.Sessions
             {
                 do
                 {
-                    _manual.WaitOne();
-
-                    while (_bufferQueue.Any())
+                    try
                     {
-                        try
-                        {
-                            await _semaphore.WaitAsync(cancellationToken);
-                            var item = _bufferQueue.Dequeue();
-                            var handlers = _messageHandlerResolver.ResolveMessageHandlers(item.GetType());
+                        var item = await _reader.ReadAsync(cancellationToken);
 
-                            foreach (var handler in handlers)
-                            {
-                                await handler.HandleMessageAsync(item, cancellationToken);
-                            }
-                        }
-                        catch (Exception e)
+                        var handlers = _messageHandlerResolver.ResolveMessageHandlers(item.GetType());
+
+                        foreach (var handler in handlers)
                         {
-                            //TODO: Add logging here
-                            throw;
+                            await handler.HandleMessageAsync(item, cancellationToken);
                         }
-                        finally
-                        {
-                            _semaphore.Release();
-                        }
+                    }
+                    catch (Exception e)
+                    {
+                        //TODO: Add logging here
+                        throw;
                     }
 
                 } while (!cancellationToken.IsCancellationRequested);
@@ -79,7 +70,6 @@ namespace OpenVASP.CSharpClient.Sessions
         public void Dispose()
         {
             _cancellationTokenSource.Cancel();
-            _manual.Set();
 
             try
             {
@@ -87,12 +77,10 @@ namespace OpenVASP.CSharpClient.Sessions
             }
             catch (Exception e)
             {
-                //TODO: process exception
+                //TODO: log exception
                 // ignored
             }
 
-            _semaphore?.Dispose();
-            _manual?.Dispose();
             _queueWorker?.Dispose();
         }
     }

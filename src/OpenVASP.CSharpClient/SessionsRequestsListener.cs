@@ -54,9 +54,9 @@ namespace OpenVASP.CSharpClient
         /// <summary>
         /// Run listener which would process incoming messages.
         /// </summary>
-        /// <param name="messageHandler">Handler which authorizes originator's Vasp and processes
+        /// <param name="callbacks">Handler which authorizes originator's Vasp and processes
         /// Transfer Request and Transfer Dispatch Messages</param>
-        public void StartTopicMonitoring(IVaspMessageHandler messageHandler)
+        public void StartTopicMonitoring(IBeneficiaryVaspCallbacks callbacks)
         {
             lock (_lock)
             {
@@ -106,11 +106,11 @@ namespace OpenVASP.CSharpClient
                                     originatorVaspContractInfo.SigningKey,
                                     sharedSecret,
                                     _signatureKey,
-                                    messageHandler,
+                                    callbacks,
                                     _transportClient,
                                     _signService);
 
-                                await messageHandler.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
+                                await callbacks.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
 
                                 if (SessionCreated != null)
                                 {

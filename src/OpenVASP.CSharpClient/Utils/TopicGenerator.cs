@@ -1,12 +1,11 @@
 ﻿using System;
 using Nethereum.Hex.HexConvertors.Extensions;
-using OpenVASP.Messaging;
 
 namespace OpenVASP.CSharpClient.Utils
 {
     public static class TopicGenerator
     {
-        private static Random _random = new Random();
+        private static readonly Random _random = new Random();
 
         public static string GenerateSessionTopic()
         {

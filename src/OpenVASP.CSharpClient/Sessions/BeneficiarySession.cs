@@ -9,7 +9,7 @@ namespace OpenVASP.CSharpClient.Sessions
 {
     internal class BeneficiarySession : VaspSession
     {
-        private readonly IVaspMessageHandler _vaspMessageHandler;
+        private readonly IBeneficiaryVaspCallbacks _beneficiaryVaspCallbacks;
 
         public BeneficiarySession(
             VaspInformation beneficiaryVasp,
@@ -18,7 +18,7 @@ namespace OpenVASP.CSharpClient.Sessions
             string counterPartyPubSigningKey,
             string sharedKey,
             string privateSigningKey,
-            IVaspMessageHandler vaspMessageHandler,
+            IBeneficiaryVaspCallbacks beneficiaryVaspCallbacks,
             ITransportClient transportClient,
             ISignService signService)
             : base(
@@ -29,7 +29,7 @@ namespace OpenVASP.CSharpClient.Sessions
                 transportClient, 
                 signService)
         {
-            _vaspMessageHandler = vaspMessageHandler;
+            _beneficiaryVaspCallbacks = beneficiaryVaspCallbacks;
 
             SessionId = sessionId;
             CounterPartyTopic = counterpartyTopic;
@@ -64,9 +64,13 @@ namespace OpenVASP.CSharpClient.Sessions
 
         public async Task StartAsync(SessionReplyMessage.SessionReplyMessageCode code)
         {
-            var reply = SessionReplyMessage.Create(SessionId, code, new HandShakeResponse(SessionTopic), _vaspInfo);
+            var reply = SessionReplyMessage.Create(
+                SessionId,
+                code,
+                new HandShakeResponse(SessionTopic),
+                _vaspInfo);
             CounterParty.VaspInfo = reply.Vasp;
-            _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
+            _sharedSymKeyId = await RegisterSymKeyAsync();
 
             await _transportClient.SendAsync(new MessageEnvelope
             {
@@ -81,18 +85,12 @@ namespace OpenVASP.CSharpClient.Sessions
 
         private Task ProcessTransferRequestMessageAsync(TransferRequestMessage message, CancellationToken token)
         {
-            return _vaspMessageHandler.TransferRequestHandlerAsync(message, this);
+            return _beneficiaryVaspCallbacks.TransferRequestHandlerAsync(message, this);
         }
 
         private Task ProcessTransferDispatchMessageAsync(TransferDispatchMessage message, CancellationToken token)
         {
-            return _vaspMessageHandler.TransferDispatchHandlerAsync(message, this);
-        }
-
-        private Task ProcessTerminationMessageAsync(TerminationMessage message, CancellationToken token)
-        {
-            _hasReceivedTerminationMessage = true;
-            return TerminateAsync(message.GetMessageCode());
+            return _beneficiaryVaspCallbacks.TransferDispatchHandlerAsync(message, this);
         }
     }
 }

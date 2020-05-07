@@ -18,13 +18,12 @@ namespace OpenVASP.CSharpClient.Sessions
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly string _counterPartyPubSigningKey;
         private readonly ISignService _signService;
+        private readonly string _sharedKey;
 
         private bool _isActivated;
         private ProducerConsumerQueue _producerConsumerQueue;
         private Task _task;
 
-        protected readonly string _sessionTopic;
-        protected readonly string _sharedKey;
         protected readonly string _privateSigningKey;
         protected readonly MessageHandlerResolverBuilder _messageHandlerResolverBuilder;
         protected readonly VaspInformation _vaspInfo;
@@ -36,8 +35,8 @@ namespace OpenVASP.CSharpClient.Sessions
         public event Func<SessionTerminationEvent, Task> OnSessionTermination;
 
         public string SessionId { get; protected set; }
-        public string SessionTopic => _sessionTopic;
         public string CounterPartyTopic { get; protected set; }
+        public string SessionTopic { get; } = TopicGenerator.GenerateSessionTopic();
         public VaspSessionCounterparty CounterParty { get; } = new VaspSessionCounterparty();
 
         public VaspSession(
@@ -49,7 +48,6 @@ namespace OpenVASP.CSharpClient.Sessions
             ISignService signService)
         {
             _vaspInfo = vaspInfo;
-            _sessionTopic = TopicGenerator.GenerateSessionTopic();
             _cancellationTokenSource = new CancellationTokenSource();
             _sharedKey = sharedEncryptionKey;
             _privateSigningKey = privateSigningKey;
@@ -63,54 +61,46 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             lock (_lock)
             {
-                if (!_isActivated)
+                if (_isActivated)
+                    throw new InvalidOperationException("Session was already started");
+
+                var taskFactory = new TaskFactory(_cancellationTokenSource.Token);
+                var cancellationToken = _cancellationTokenSource.Token;
+
+                _task = taskFactory.StartNew(async _ =>
                 {
-                    var taskFactory = new TaskFactory(_cancellationTokenSource.Token);
-                    var cancellationToken = _cancellationTokenSource.Token;
+                    _sharedSymKeyId = await RegisterSymKeyAsync();
+                    var messageFilter = await _transportClient.CreateMessageFilterAsync(SessionTopic, symKeyId: _sharedSymKeyId);
+                    var messageHandlerResolver = _messageHandlerResolverBuilder.Build();
+                    _producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
 
-                    _task = taskFactory.StartNew(async _ =>
+                    do
                     {
-                        _sharedSymKeyId = await _transportClient.RegisterSymKeyAsync(_sharedKey);
-                        var messageFilter = await _transportClient.CreateMessageFilterAsync(_sessionTopic, symKeyId: _sharedSymKeyId);
-                        var messageHandlerResolver = _messageHandlerResolverBuilder.Build();
-                        _producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
+                        var messages = await _transportClient.GetSessionMessagesAsync(messageFilter);
 
-                        do
+                        if (messages == null || messages.Count == 0)
                         {
-                            var messages = await _transportClient.GetSessionMessagesAsync(messageFilter);
+                            await Task.Delay(5000, cancellationToken);
+                            continue;
+                        }
 
-                            if (messages != null &&
-                                messages.Count != 0)
+                        foreach (var message in messages)
+                        {
+                            if (!_signService.VerifySign(
+                                message.Payload,
+                                message.Signature,
+                                _counterPartyPubSigningKey))
                             {
-                                foreach (var message in messages)
-                                {
-                                    if (!_signService.VerifySign(
-                                        message.Payload,
-                                        message.Signature,
-                                        _counterPartyPubSigningKey))
-                                    {
-                                        //TODO: Log this
-                                        continue;
-                                    }
-
-                                    await _producerConsumerQueue.EnqueueAsync(message.Message);
-                                }
-
+                                //TODO: Log this
                                 continue;
                             }
 
-                            //Poll whisper each 5 sec for new messages
-                            await Task.Delay(5000, cancellationToken);
+                            _producerConsumerQueue.Enqueue(message.Message);
+                        }
+                    } while (!cancellationToken.IsCancellationRequested);
+                }, cancellationToken, TaskCreationOptions.LongRunning);
 
-                        } while (!cancellationToken.IsCancellationRequested);
-                    }, cancellationToken, TaskCreationOptions.LongRunning);
-
-                    _isActivated = true;
-                }
-                else
-                {
-                    throw new Exception("Session was already started");
-                }
+                _isActivated = true;
             }
         }
 
@@ -122,6 +112,7 @@ namespace OpenVASP.CSharpClient.Sessions
             }
             catch (Exception e)
             {
+                // TODO log this
             }
         }
 
@@ -142,6 +133,18 @@ namespace OpenVASP.CSharpClient.Sessions
             _task?.Dispose();
             _producerConsumerQueue?.Dispose();
             _cancellationTokenSource?.Dispose();
+        }
+
+        protected Task<string> RegisterSymKeyAsync()
+        {
+            return _transportClient.RegisterSymKeyAsync(_sharedKey);
+        }
+
+        protected Task ProcessTerminationMessageAsync(TerminationMessage message, CancellationToken token)
+        {
+            _hasReceivedTerminationMessage = true;
+
+            return TerminateAsync(message.GetMessageCode());
         }
 
         private async Task TerminateStrategyAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)

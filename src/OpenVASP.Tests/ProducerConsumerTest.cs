@@ -30,11 +30,11 @@ namespace OpenVASP.Tests
                     new HandShakeRequest("1", "1"),
                     new VaspInformation("1", "1", "1", null, null, null, null, ""));
 
-                producerConsumerQueue.EnqueueAsync(sessionRequestMessage).GetAwaiter().GetResult();
-                producerConsumerQueue.EnqueueAsync(sessionRequestMessage).GetAwaiter().GetResult();
-                producerConsumerQueue.EnqueueAsync(sessionRequestMessage).GetAwaiter().GetResult();
-                producerConsumerQueue.EnqueueAsync(sessionRequestMessage).GetAwaiter().GetResult();
-                producerConsumerQueue.EnqueueAsync(sessionRequestMessage).GetAwaiter().GetResult();
+                producerConsumerQueue.Enqueue(sessionRequestMessage);
+                producerConsumerQueue.Enqueue(sessionRequestMessage);
+                producerConsumerQueue.Enqueue(sessionRequestMessage);
+                producerConsumerQueue.Enqueue(sessionRequestMessage);
+                producerConsumerQueue.Enqueue(sessionRequestMessage);
 
                 eventHandle.Wait(1_000);
             }
