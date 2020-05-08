@@ -11,7 +11,6 @@ namespace OpenVASP.Messaging.Messages
         {
             return new SessionReplyMessage
             {
-                //MessageType = MessageType.SessionReply,
                 Message = message,
                 HandShake = handshake,
                 Vasp = vasp
@@ -38,6 +37,7 @@ namespace OpenVASP.Messaging.Messages
         {
             return ((int)messageCode).ToString();
         }
+
         public enum SessionReplyMessageCode
         {
             SessionAccepted = 1,

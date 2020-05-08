@@ -11,7 +11,6 @@ namespace OpenVASP.Messaging.Messages
         {
             return new TerminationMessage
             {
-                //MessageType = MessageType.Termination,
                 Message = message,
                 Vasp = vasp,
             };

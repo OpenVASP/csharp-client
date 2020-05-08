@@ -17,7 +17,6 @@ namespace OpenVASP.Messaging.Messages
         {
             return new TransferConfirmationMessage
             {
-                //MessageType = MessageType.TransferConfirmation,
                 Message = message,
                 Originator = originator,
                 Beneficiary = beneficiary,

@@ -8,24 +8,32 @@ namespace OpenVASP.Messaging
     public class MessageHandlerResolver
     {
         private readonly Dictionary<Type, MessageHandlerBase[]> _handlersDict;
+        private readonly MessageHandlerBase _defaultHandler;
 
         public MessageHandlerResolver()
         {
             _handlersDict = new Dictionary<Type, MessageHandlerBase[]>();
         }
 
-        internal MessageHandlerResolver(params (Type type, MessageHandlerBase handler)[] handlers)
+        internal MessageHandlerResolver(
+            (Type type, MessageHandlerBase handler)[] handlers,
+            MessageHandlerBase defaultHandler = null)
         {
             _handlersDict = handlers
                 .GroupBy(x => x.type, y => y.handler)
                 .ToDictionary(group => group.Key, group => group.ToArray());
+            _defaultHandler = defaultHandler;
         }
 
         public MessageHandlerBase[] ResolveMessageHandlers(Type type)
         {
-            _handlersDict.TryGetValue(type, out var handlers);
+            if (_handlersDict.TryGetValue(type, out var handlers))
+                return handlers;
 
-            return handlers;
+            if (_defaultHandler != null)
+                return new [] { _defaultHandler };
+
+            return Array.Empty<MessageHandlerBase>();
         }
     }
 }

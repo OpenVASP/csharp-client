@@ -24,15 +24,13 @@ namespace OpenVASP.CSharpClient
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
         private readonly SessionsRequestsListener _sessionsRequestsListener;
-
+        private readonly MessagesTimeoutsConfiguration _messagesTimeoutsConfiguration;
+        private readonly IOriginatorVaspCallbacks _originatorVaspCallbacks;
         private readonly ConcurrentDictionary<string, BeneficiarySession> _beneficiarySessionsDict = 
             new ConcurrentDictionary<string, BeneficiarySession>();
         private readonly ConcurrentDictionary<string, OriginatorSession> _originatorSessionsDict = 
             new ConcurrentDictionary<string, OriginatorSession>();
-
         private readonly string _signatureKey;
-
-        private readonly IOriginatorVaspCallbacks _originatorVaspCallbacks;
 
         /// <summary>Notifies about session termination.</summary>
         public event Func<SessionTerminationEvent, Task> SessionTerminated;
@@ -69,7 +67,8 @@ namespace OpenVASP.CSharpClient
             IEthereumRpc nodeClientEthereumRpc,
             IEnsProvider ensProvider,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            MessagesTimeoutsConfiguration messagesTimeoutsConfiguration)
         {
             _signatureKey = signatureHexKey;
             VaspCode = vaspCode;
@@ -78,6 +77,7 @@ namespace OpenVASP.CSharpClient
             _ensProvider = ensProvider;
             _transportClient = transportClient;
             _signService = signService;
+            _messagesTimeoutsConfiguration = messagesTimeoutsConfiguration;
 
             _originatorVaspCallbacks = new OriginatorVaspCallbacks(
                 async (message, session) =>
@@ -127,8 +127,15 @@ namespace OpenVASP.CSharpClient
                         new SessionMessageEvent<TransferDispatchMessage>(currentSession.SessionId, dispatch));
                 });
 
-            _sessionsRequestsListener = new SessionsRequestsListener(handshakeKey, signatureHexKey, vaspCode,
-                vaspInfo, nodeClientEthereumRpc, transportClient, signService);
+            _sessionsRequestsListener = new SessionsRequestsListener(
+                handshakeKey,
+                signatureHexKey,
+                vaspCode,
+                vaspInfo,
+                nodeClientEthereumRpc,
+                transportClient,
+                signService,
+                _messagesTimeoutsConfiguration);
             _sessionsRequestsListener.SessionCreated += BeneficiarySessionCreatedAsync;
             _sessionsRequestsListener.StartTopicMonitoring(beneficiaryVaspCallbacks);
         }
@@ -159,7 +166,8 @@ namespace OpenVASP.CSharpClient
                 _signatureKey,
                 _transportClient,
                 _signService,
-                _originatorVaspCallbacks);
+                _originatorVaspCallbacks,
+                _messagesTimeoutsConfiguration);
 
             await session.StartAsync();
 
@@ -243,7 +251,8 @@ namespace OpenVASP.CSharpClient
             IEthereumRpc nodeClientEthereumRpc,
             IEnsProvider ensProvider,
             ISignService signService,
-            ITransportClient transportClient)
+            ITransportClient transportClient,
+            MessagesTimeoutsConfiguration messagesTimeoutsConfiguration = null)
         {
             var handshakeKey = ECDH_Key.ImportKey(handshakePrivateKeyHex);
 
@@ -255,7 +264,8 @@ namespace OpenVASP.CSharpClient
                 nodeClientEthereumRpc,
                 ensProvider,
                 transportClient,
-                signService);
+                signService,
+                messagesTimeoutsConfiguration ?? new MessagesTimeoutsConfiguration());
 
             return vaspClient;
         }
@@ -280,18 +290,6 @@ namespace OpenVASP.CSharpClient
                         .ContinueWith(async _ => await originatorSession.WaitAsync()));
             }
             Task.WhenAll(tasks).GetAwaiter().GetResult();
-        }
-
-        /// <summary>
-        /// Get all active VaspSessions
-        /// </summary>
-        /// <returns>Active VaspSessions</returns>
-        public IReadOnlyList<VaspSession> GetActiveSessions()
-        {
-            var beneficiarySessions = _beneficiarySessionsDict.Values.Cast<VaspSession>();
-            var originatorSessions = _originatorSessionsDict.Values.Cast<VaspSession>();
-
-            return beneficiarySessions.Concat(originatorSessions).ToArray();
         }
 
         private async Task NotifySessionCreatedAsync(VaspSession session)

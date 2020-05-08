@@ -8,11 +8,12 @@ using OpenVASP.CSharpClient.Utils;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
+using Timer = System.Timers.Timer;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
     //TODO: Add thread safety + state machine
-    public abstract class VaspSession : IDisposable
+    internal abstract class VaspSession : IDisposable
     {
         private readonly object _lock = new object();
         private readonly CancellationTokenSource _cancellationTokenSource;
@@ -21,6 +22,7 @@ namespace OpenVASP.CSharpClient.Sessions
         private readonly string _sharedKey;
 
         private bool _isActivated;
+        private bool _hasReceivedTerminationMessage;
         private ProducerConsumerQueue _producerConsumerQueue;
         private Task _task;
 
@@ -28,9 +30,12 @@ namespace OpenVASP.CSharpClient.Sessions
         protected readonly MessageHandlerResolverBuilder _messageHandlerResolverBuilder;
         protected readonly VaspInformation _vaspInfo;
         protected readonly ITransportClient _transportClient;
+        protected readonly Timer _timer = new Timer { AutoReset = false };
 
-        protected bool _hasReceivedTerminationMessage = false;
         protected string _sharedSymKeyId;
+        protected int _retriesCount;
+
+        internal SessionState State { get; set; }
 
         public event Func<SessionTerminationEvent, Task> OnSessionTermination;
 
@@ -69,8 +74,8 @@ namespace OpenVASP.CSharpClient.Sessions
 
                 _task = taskFactory.StartNew(async _ =>
                 {
-                    _sharedSymKeyId = await RegisterSymKeyAsync();
                     var messageFilter = await _transportClient.CreateMessageFilterAsync(SessionTopic, symKeyId: _sharedSymKeyId);
+                    _messageHandlerResolverBuilder.AddDefaultHandler(ProcessUnexpectedMessageAsync);
                     var messageHandlerResolver = _messageHandlerResolverBuilder.Build();
                     _producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
 
@@ -142,6 +147,7 @@ namespace OpenVASP.CSharpClient.Sessions
 
         protected Task ProcessTerminationMessageAsync(TerminationMessage message, CancellationToken token)
         {
+            _timer.Enabled = false;
             _hasReceivedTerminationMessage = true;
 
             return TerminateAsync(message.GetMessageCode());
@@ -174,6 +180,13 @@ namespace OpenVASP.CSharpClient.Sessions
                 .OfType<Func<SessionTerminationEvent, Task>>()
                 .Select(d => d(@event));
             return Task.WhenAll(tasks);
+        }
+
+        private Task ProcessUnexpectedMessageAsync(MessageBase message, CancellationToken token)
+        {
+            // TODO log this;
+
+            return Task.CompletedTask;
         }
     }
 }

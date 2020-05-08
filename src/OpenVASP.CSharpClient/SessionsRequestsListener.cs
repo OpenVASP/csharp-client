@@ -26,6 +26,7 @@ namespace OpenVASP.CSharpClient
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private readonly MessagesTimeoutsConfiguration _messagesTimeoutsConfiguration;
         private readonly object _lock = new object();
 
         /// <summary>
@@ -40,7 +41,8 @@ namespace OpenVASP.CSharpClient
             VaspInformation vaspInfo,
             IEthereumRpc ethereumRpc,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            MessagesTimeoutsConfiguration messagesTimeoutsConfiguration)
         {
             _handshakeKey = handshakeKey;
             _signatureKey = signatureKey;
@@ -49,6 +51,7 @@ namespace OpenVASP.CSharpClient
             _ethereumRpc = ethereumRpc;
             _transportClient = transportClient;
             _signService = signService;
+            _messagesTimeoutsConfiguration = messagesTimeoutsConfiguration;
         }
 
         /// <summary>
@@ -82,22 +85,19 @@ namespace OpenVASP.CSharpClient
 
                             foreach (var message in sessionRequestMessages)
                             {
-                                var sessionRequestMessage = message.Message as SessionRequestMessage;
-
-                                if (sessionRequestMessage == null)
+                                if (!(message.Message is SessionRequestMessage sessionRequestMessage))
                                     continue;
 
-                                var originatorVaspContractInfo =
-                                    await _ethereumRpc.GetVaspContractInfoAync(sessionRequestMessage.Vasp
-                                        .VaspIdentity);
+                                var originatorVaspContractInfo = await _ethereumRpc.GetVaspContractInfoAync(
+                                    sessionRequestMessage.Vasp.VaspIdentity);
 
-                                if (!_signService.VerifySign(message.Payload, message.Signature,
+                                if (!_signService.VerifySign(
+                                    message.Payload,
+                                    message.Signature,
                                     originatorVaspContractInfo.SigningKey))
                                     continue;
 
-                                var sharedSecret =
-                                    _handshakeKey.GenerateSharedSecretHex(
-                                        sessionRequestMessage.HandShake.EcdhPubKey);
+                                var sharedSecret = _handshakeKey.GenerateSharedSecretHex(sessionRequestMessage.HandShake.EcdhPubKey);
 
                                 var session = new BeneficiarySession(
                                     _vaspInfo,
@@ -108,7 +108,8 @@ namespace OpenVASP.CSharpClient
                                     _signatureKey,
                                     callbacks,
                                     _transportClient,
-                                    _signService);
+                                    _signService,
+                                    _messagesTimeoutsConfiguration);
 
                                 await callbacks.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
 

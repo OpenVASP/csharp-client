@@ -16,7 +16,6 @@ namespace OpenVASP.Messaging.Messages
         {
             return new TransferReplyMessage
             {
-                //MessageType = MessageType.TransferReply,
                 Message = message,
                 Originator = originator,
                 Beneficiary = beneficiary,
