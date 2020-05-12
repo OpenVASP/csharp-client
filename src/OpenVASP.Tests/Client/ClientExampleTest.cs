@@ -8,7 +8,6 @@ using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 using Xunit;
-using Transaction = OpenVASP.Messaging.Messages.Entities.Transaction;
 
 namespace OpenVASP.Tests.Client
 {
@@ -16,24 +15,22 @@ namespace OpenVASP.Tests.Client
     {
         private readonly IEnsProvider _fakeEnsProvider;
         private readonly WhisperSignService _signService;
-        private readonly WhisperRpc _whisperRpc;
         private readonly EthereumRpc _ethereumRpc;
         private readonly WhisperTransportClient _transportClient;
-
-        public VaspTestSettings Settings { get; set; }
+        private readonly VaspTestSettings _settings;
 
         public ClientExampleTest()
         {
             string whisperRpcUrl = "http://144.76.25.187:8025"; //Environment.GetEnvironmentVariable( "WHISPER_RPC_URL");
             string ethereumRpcUrl = "https://ropsten.infura.io/v3/fb49e892176d413d85f993d0352a0971"; //Environment.GetEnvironmentVariable("ETHEREUM_RPC_URL");
 
-            this._fakeEnsProvider = new FakeEnsProvider();
-            this._signService = new WhisperSignService();
-            this._ethereumRpc = new EthereumRpc(new Web3(ethereumRpcUrl));
-            this._whisperRpc = new WhisperRpc(new Web3(whisperRpcUrl), new WhisperMessageFormatter());
-            this._transportClient = new WhisperTransportClient(_whisperRpc, _signService, new WhisperMessageFormatter());
+            _fakeEnsProvider = new FakeEnsProvider();
+            _signService = new WhisperSignService();
+            _ethereumRpc = new EthereumRpc(new Web3(ethereumRpcUrl));
+            var whisperRpc = new WhisperRpc(new Web3(whisperRpcUrl), new WhisperMessageFormatter());
+            _transportClient = new WhisperTransportClient(whisperRpc, _signService, new WhisperMessageFormatter());
 
-            Settings = new VaspTestSettings()
+            _settings = new VaspTestSettings
             {
                 PersonHandshakePrivateKeyHex = "0xe7578145d518e5272d660ccfdeceedf2d55b90867f2b7a6e54dc726662aebac2",
                 PersonSignaturePrivateKeyHex = "0x790a3437381e0ca44a71123d56dc64a6209542ddd58e5a56ecdb13134e86f7c6",
@@ -57,16 +54,16 @@ namespace OpenVASP.Tests.Client
         [Fact]
         public async Task ConnectionBetweenTwoClientsSuccessful()
         {
-            (VaspInformation vaspInfoPerson, VaspContractInfo vaspContractInfoPerson) = await VaspInformationBuilder.CreateForNaturalPersonAsync(
+            (VaspInformation vaspInfoPerson, VaspCode vaspCodePerson) = await VaspInformationBuilder.CreateForNaturalPersonAsync(
                 _ethereumRpc,
-                Settings.VaspSmartContractAddressPerson,
-                Settings.NaturalPersonIds,
-                Settings.PlaceOfBirth);
+                _settings.VaspSmartContractAddressPerson,
+                _settings.NaturalPersonIds,
+                _settings.PlaceOfBirth);
 
-            (VaspInformation vaspInfoJuridical, VaspContractInfo vaspContractInfoJuridical) = await VaspInformationBuilder.CreateForJuridicalPersonAsync(
+            (VaspInformation vaspInfoJuridical, VaspCode vaspCodeJuridical) = await VaspInformationBuilder.CreateForJuridicalPersonAsync(
                 _ethereumRpc,
-                Settings.VaspSmartContractAddressJuridical,
-                Settings.JuridicalIds);
+                _settings.VaspSmartContractAddressJuridical,
+                _settings.JuridicalIds);
 
             var originatorVaan =  VirtualAssetsAccountNumber.Create(   vaspInfoPerson.GetVaspCode(), "524ee3fb082809");
             var beneficiaryVaan = VirtualAssetsAccountNumber.Create(vaspInfoJuridical.GetVaspCode(), "524ee3fb082809");
@@ -105,9 +102,9 @@ namespace OpenVASP.Tests.Client
 
             var originatorClient = VaspClient.Create(
                 vaspInfoPerson,
-                vaspContractInfoPerson.VaspCode,
-                Settings.PersonHandshakePrivateKeyHex,
-                Settings.PersonSignaturePrivateKeyHex,
+                vaspCodePerson,
+                _settings.PersonHandshakePrivateKeyHex,
+                _settings.PersonSignaturePrivateKeyHex,
                 _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,
@@ -145,9 +142,9 @@ namespace OpenVASP.Tests.Client
 
             var beneficiaryClient = VaspClient.Create(
                 vaspInfoJuridical,
-                vaspContractInfoJuridical.VaspCode,
-                Settings.JuridicalHandshakePrivateKeyHex,
-                Settings.JuridicalSignaturePrivateKeyHex,
+                vaspCodeJuridical,
+                _settings.JuridicalHandshakePrivateKeyHex,
+                _settings.JuridicalSignaturePrivateKeyHex,
                 _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,

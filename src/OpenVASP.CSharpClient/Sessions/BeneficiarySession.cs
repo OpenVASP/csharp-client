@@ -1,7 +1,5 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;

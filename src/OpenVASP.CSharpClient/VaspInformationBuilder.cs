@@ -10,10 +10,10 @@ namespace OpenVASP.CSharpClient
 
         public VaspInformationBuilder(IEthereumRpc nodeClientEthereumRpc)
         {
-            this._nodeClientEthereumRpc = nodeClientEthereumRpc;
+            _nodeClientEthereumRpc = nodeClientEthereumRpc;
         }
 
-        public async Task<(VaspInformation VaspInformation, VaspContractInfo VaspContractInfo)> CreateForNaturalPersonAsync(
+        public async Task<(VaspInformation VaspInformation, VaspCode VaspCode)> CreateForNaturalPersonAsync(
             string vaspSmartContractAddress,
             NaturalPersonId[] naturalPersonIds,
             PlaceOfBirth placeOfBirth)
@@ -29,10 +29,10 @@ namespace OpenVASP.CSharpClient
                 null,
                 null);
 
-            return (vaspInformation, vaspContractInfo);
+            return (vaspInformation, vaspContractInfo.VaspCode);
         }
 
-        public async Task<(VaspInformation VaspInformation, VaspContractInfo VaspContractInfo)> CreateForJuridicalPersonAsync(
+        public async Task<(VaspInformation VaspInformation, VaspCode VaspCode)> CreateForJuridicalPersonAsync(
             string vaspSmartContractAddress,
             JuridicalPersonId[] juridicalIds)
         {
@@ -47,10 +47,10 @@ namespace OpenVASP.CSharpClient
                 juridicalIds,
                 null);
 
-            return (vaspInformation, vaspContractInfo);
+            return (vaspInformation, vaspContractInfo.VaspCode);
         }
 
-        public async Task<(VaspInformation VaspInformation, VaspContractInfo VaspContractInfo)> CreateForBankAsync(
+        public async Task<(VaspInformation VaspInformation, VaspCode VaspCode)> CreateForBankAsync(
             string vaspSmartContractAddress,
             string settingsBic)
         {
@@ -65,10 +65,10 @@ namespace OpenVASP.CSharpClient
                 null,
                 settingsBic);
 
-            return (vaspInformation, vaspContractInfo);
+            return (vaspInformation, vaspContractInfo.VaspCode);
         }
 
-        public static Task<(VaspInformation VaspInformation, VaspContractInfo VaspContractInfo)> CreateForNaturalPersonAsync(
+        public static Task<(VaspInformation VaspInformation, VaspCode VaspCode)> CreateForNaturalPersonAsync(
             IEthereumRpc ethereumRpc,
             string vaspSmartContractAddress,
             NaturalPersonId[] settingsNaturalPersonIds,
@@ -76,11 +76,13 @@ namespace OpenVASP.CSharpClient
         {
             var vaspInformationBuilder = new VaspInformationBuilder(ethereumRpc);
 
-            return vaspInformationBuilder.CreateForNaturalPersonAsync(vaspSmartContractAddress, settingsNaturalPersonIds,
+            return vaspInformationBuilder.CreateForNaturalPersonAsync(
+                vaspSmartContractAddress,
+                settingsNaturalPersonIds,
                 settingsPlaceOfBirth);
         }
 
-        public static Task<(VaspInformation VaspInformation, VaspContractInfo VaspContractInfo)> CreateForJuridicalPersonAsync(
+        public static Task<(VaspInformation VaspInformation, VaspCode VaspCode)> CreateForJuridicalPersonAsync(
             IEthereumRpc ethereumRpc,
             string vaspSmartContractAddress,
             JuridicalPersonId[] juridicalIds)
@@ -90,7 +92,7 @@ namespace OpenVASP.CSharpClient
             return vaspInformationBuilder.CreateForJuridicalPersonAsync(vaspSmartContractAddress, juridicalIds);
         }
 
-        public static Task<(VaspInformation VaspInformation, VaspContractInfo VaspContractInfo)> CreateForBankAsync(
+        public static Task<(VaspInformation VaspInformation, VaspCode VaspCode)> CreateForBankAsync(
             IEthereumRpc ethereumRpc,
             string vaspSmartContractAddress,
             string settingsBic)

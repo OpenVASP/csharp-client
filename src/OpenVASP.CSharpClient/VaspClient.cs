@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Nethereum.Hex.HexConvertors.Extensions;
@@ -139,9 +138,9 @@ namespace OpenVASP.CSharpClient
         private async Task BeneficiarySessionCreatedAsync(BeneficiarySession session, SessionRequestMessage sessionRequestMessage)
         {
             _beneficiarySessionsDict.TryAdd(session.Info.Id, session);
-            
+
             session.OpenChannel();
-            
+
             await NotifyBeneficiarySessionCreatedAsync(session);
 
             await _beneficiaryVaspCallbacks.SessionRequestHandlerAsync(sessionRequestMessage, session);
@@ -150,7 +149,7 @@ namespace OpenVASP.CSharpClient
         public async Task CloseSessionAsync(string sessionId)
         {
             var session = (VaspSession) _originatorSessionsDict[sessionId] ?? _beneficiarySessionsDict[sessionId];
-            
+
             if(session == null)
                 throw new ArgumentException($"Session with id {sessionId} not found");
 
@@ -167,9 +166,9 @@ namespace OpenVASP.CSharpClient
                 _beneficiaryVaspCallbacks,
                 _transportClient,
                 _signService);
-            
+
             _beneficiarySessionsDict.TryAdd(session.Info.Id, session);
-            
+
             session.OpenChannel();
 
             return sessionInfo;
@@ -188,7 +187,7 @@ namespace OpenVASP.CSharpClient
                 var messageFilter = await _transportClient.CreateMessageFilterAsync(
                     topic,
                     symKeyId: symKey);
-                
+
                 sessionInfo = new OriginatorSessionInfo
                 {
                     Id = Guid.NewGuid().ToByteArray().ToHex(true),
@@ -202,7 +201,7 @@ namespace OpenVASP.CSharpClient
                     SymKey = symKey
                 };
             }
-            
+
             var session = new OriginatorSession(
                 sessionInfo,
                 vaspCode,
@@ -325,17 +324,19 @@ namespace OpenVASP.CSharpClient
 
         public void Dispose()
         {
+            _sessionsRequestsListener.StopAsync().GetAwaiter().GetResult();
             _sessionsRequestsListener.Dispose();
 
             foreach (var session in _originatorSessionsDict.Values)
             {
                 session.Dispose();
             }
-            
+            _originatorSessionsDict.Clear();
             foreach (var session in _beneficiarySessionsDict.Values)
             {
                 session.Dispose();
             }
+            _beneficiarySessionsDict.Clear();
         }
 
         private async Task NotifyBeneficiarySessionCreatedAsync(BeneficiarySession session)

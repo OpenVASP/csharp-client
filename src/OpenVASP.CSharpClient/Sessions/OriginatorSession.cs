@@ -1,8 +1,5 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
-using Nethereum.Hex.HexConvertors.Extensions;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
@@ -94,7 +91,7 @@ namespace OpenVASP.CSharpClient.Sessions
         private Task ProcessSessionReplyMessageAsync(SessionReplyMessage message, CancellationToken token)
         {
             Info.CounterPartyTopic = message.HandShake.TopicB;
-            
+
             _messageEnvelope = new MessageEnvelope
             {
                 Topic = Info.CounterPartyTopic,

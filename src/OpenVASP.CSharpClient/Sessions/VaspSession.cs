@@ -1,18 +1,12 @@
 ﻿using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
-using OpenVASP.CSharpClient.Utils;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
-using OpenVASP.Messaging.Messages.Entities;
-using Timer = System.Timers.Timer;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
-    //TODO: Add thread safety + state machine
     internal abstract class VaspSession : IDisposable
     {
         private readonly object _lock = new object();
@@ -20,13 +14,12 @@ namespace OpenVASP.CSharpClient.Sessions
         private readonly ISignService _signService;
 
         private bool _isListening;
-        private bool _hasReceivedTerminationMessage;
         private ProducerConsumerQueue _producerConsumerQueue;
         private Task _task;
 
         protected readonly MessageHandlerResolverBuilder _messageHandlerResolverBuilder;
         protected readonly ITransportClient _transportClient;
-        
+
         public VaspSessionInfo Info { get; }
 
         public VaspSession(
@@ -39,14 +32,14 @@ namespace OpenVASP.CSharpClient.Sessions
             _transportClient = transportClient;
             _signService = signService;
         }
-        
+
         public void OpenChannel()
         {
             lock (_lock)
             {
                 if (_isListening)
                     throw new InvalidOperationException("Session was already started");
-                
+
                 _cancellationTokenSource = new CancellationTokenSource();
 
                 var taskFactory = new TaskFactory(_cancellationTokenSource.Token);

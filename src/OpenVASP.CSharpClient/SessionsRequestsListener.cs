@@ -111,7 +111,7 @@ namespace OpenVASP.CSharpClient
                                     MessageFilter = filter,
                                     SymKey = symKey
                                 };
-                                
+
                                 var session = new BeneficiarySession(
                                     sessionInfo,
                                     callbacks,
@@ -143,9 +143,10 @@ namespace OpenVASP.CSharpClient
         {
             try
             {
-                Dispose();
-                
-                await _task;
+                _cancellationTokenSource?.Cancel();
+
+                if (_task != null)
+                    await _task;
 
                 _isListening = false;
             }
@@ -157,8 +158,11 @@ namespace OpenVASP.CSharpClient
 
         public void Dispose()
         {
+            if (_isListening)
+                StopAsync().GetAwaiter().GetResult();
+
             _cancellationTokenSource?.Cancel();
-            
+
             _task?.Dispose();
             _task = null;
         }
