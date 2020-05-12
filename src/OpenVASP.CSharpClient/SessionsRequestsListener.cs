@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Cryptography;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.CSharpClient.Sessions;
+using OpenVASP.CSharpClient.Utils;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 
@@ -15,43 +16,37 @@ namespace OpenVASP.CSharpClient
     /// </summary>
     internal class SessionsRequestsListener : IDisposable
     {
-        private bool _hasStartedListening;
-        private Task _listener;
+        private bool _isListening;
+        private Task _task;
+        private CancellationTokenSource _cancellationTokenSource;
 
         private readonly ECDH_Key _handshakeKey;
         private readonly string _signatureKey;
         private readonly VaspCode _vaspCode;
-        private readonly VaspInformation _vaspInfo;
         private readonly IEthereumRpc _ethereumRpc;
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
-        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-        private readonly MessagesTimeoutsConfiguration _messagesTimeoutsConfiguration;
         private readonly object _lock = new object();
 
         /// <summary>
         /// Notifies about session creation.
         /// </summary>
-        public event Func<BeneficiarySession, Task> SessionCreated;
+        public event Func<BeneficiarySession, SessionRequestMessage, Task> SessionCreated;
 
         public SessionsRequestsListener(
             ECDH_Key handshakeKey,
             string signatureKey,
             VaspCode vaspCode,
-            VaspInformation vaspInfo,
             IEthereumRpc ethereumRpc,
             ITransportClient transportClient,
-            ISignService signService,
-            MessagesTimeoutsConfiguration messagesTimeoutsConfiguration)
+            ISignService signService)
         {
             _handshakeKey = handshakeKey;
             _signatureKey = signatureKey;
             _vaspCode = vaspCode;
-            _vaspInfo = vaspInfo;
             _ethereumRpc = ethereumRpc;
             _transportClient = transportClient;
             _signService = signService;
-            _messagesTimeoutsConfiguration = messagesTimeoutsConfiguration;
         }
 
         /// <summary>
@@ -63,16 +58,17 @@ namespace OpenVASP.CSharpClient
         {
             lock (_lock)
             {
-                if (!_hasStartedListening)
+                if (!_isListening)
                 {
-                    _hasStartedListening = true;
+                    _isListening = true;
+                    _cancellationTokenSource = new CancellationTokenSource();
                     var token = _cancellationTokenSource.Token;
                     var taskFactory = new TaskFactory(_cancellationTokenSource.Token);
 
-                    _listener = taskFactory.StartNew(async _ =>
+                    _task = taskFactory.StartNew(async _ =>
                     {
                         var privateKeyId = await _transportClient.RegisterKeyPairAsync(_handshakeKey.PrivateKey);
-                        string messageFilter = await _transportClient.CreateMessageFilterAsync(_vaspCode.Code, privateKeyId);
+                        var messageFilter = await _transportClient.CreateMessageFilterAsync(_vaspCode.Code, privateKeyId);
 
                         do
                         {
@@ -98,26 +94,35 @@ namespace OpenVASP.CSharpClient
                                     continue;
 
                                 var sharedSecret = _handshakeKey.GenerateSharedSecretHex(sessionRequestMessage.HandShake.EcdhPubKey);
-
+                                var symKey = await _transportClient.RegisterSymKeyAsync(sharedSecret);
+                                var topic = TopicGenerator.GenerateSessionTopic();
+                                var filter = await _transportClient.CreateMessageFilterAsync(
+                                    topic,
+                                    symKeyId: symKey);
+                                
+                                var sessionInfo = new BeneficiarySessionInfo
+                                {
+                                    Id = sessionRequestMessage.Message.SessionId,
+                                    PrivateSigningKey = _signatureKey,
+                                    SharedEncryptionKey = sharedSecret,
+                                    CounterPartyPublicSigningKey = originatorVaspContractInfo.SigningKey,
+                                    Topic = topic,
+                                    CounterPartyTopic = sessionRequestMessage.HandShake.TopicA,
+                                    MessageFilter = filter,
+                                    SymKey = symKey
+                                };
+                                
                                 var session = new BeneficiarySession(
-                                    _vaspInfo,
-                                    sessionRequestMessage.Message.SessionId,
-                                    sessionRequestMessage.HandShake.TopicA,
-                                    originatorVaspContractInfo.SigningKey,
-                                    sharedSecret,
-                                    _signatureKey,
+                                    sessionInfo,
                                     callbacks,
                                     _transportClient,
-                                    _signService,
-                                    _messagesTimeoutsConfiguration);
-
-                                await callbacks.AuthorizeSessionRequestAsync(sessionRequestMessage, session);
+                                    _signService);
 
                                 if (SessionCreated != null)
                                 {
                                     var tasks = SessionCreated.GetInvocationList()
-                                        .OfType<Func<BeneficiarySession, Task>>()
-                                        .Select(d => d(session));
+                                        .OfType<Func<BeneficiarySession, SessionRequestMessage, Task>>()
+                                        .Select(d => d(session, sessionRequestMessage));
                                     await Task.WhenAll(tasks);
                                 }
                             }
@@ -134,17 +139,28 @@ namespace OpenVASP.CSharpClient
         /// <summary>
         /// Stops listener for incoming session request messages
         /// </summary>
-        public void Stop()
+        public async Task StopAsync()
         {
-            _cancellationTokenSource.Cancel();
+            try
+            {
+                Dispose();
+                
+                await _task;
+
+                _isListening = false;
+            }
+            catch (Exception e)
+            {
+                //todo: handle
+            }
         }
 
         public void Dispose()
         {
-            Stop();
-
-            _listener?.Dispose();
-            _listener = null;
+            _cancellationTokenSource?.Cancel();
+            
+            _task?.Dispose();
+            _task = null;
         }
     }
 }

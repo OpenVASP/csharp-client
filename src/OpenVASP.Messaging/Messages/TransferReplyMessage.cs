@@ -7,52 +7,21 @@ namespace OpenVASP.Messaging.Messages
 {
     public class TransferReplyMessage : MessageBase
     {
-        public static TransferReplyMessage Create(
-            Message message,
-            Originator originator,
-            Beneficiary beneficiary,
-            TransferReply transfer,
-            VaspInformation vasp)
+        public static TransferReplyMessage Create(Message message)
         {
             return new TransferReplyMessage
             {
-                Message = message,
-                Originator = originator,
-                Beneficiary = beneficiary,
-                Transfer = transfer,
-                Vasp = vasp
+                Message = message
             };
         }
 
-        public static TransferReplyMessage Create(
-            string sessionId,
-            TransferReplyMessageCode transferReplyMessageCode,
-            Originator originator,
-            Beneficiary beneficiary,
-            TransferReply transfer,
-            VaspInformation vasp)
+        public static TransferReplyMessage Create(string sessionId,  TransferReplyMessageCode transferReplyMessageCode)
         {
             return new TransferReplyMessage
             {
-                Message = new Message(Guid.NewGuid().ToByteArray().ToHex(true), sessionId, GetMessageCode(transferReplyMessageCode), MessageType.TransferReply),
-                Originator = originator,
-                Beneficiary = beneficiary,
-                Transfer = transfer,
-                Vasp = vasp
+                Message = new Message(Guid.NewGuid().ToByteArray().ToHex(true), sessionId, GetMessageCode(transferReplyMessageCode), MessageType.TransferReply)
             };
         }
-
-        [JsonProperty("originator")]
-        public Originator Originator { get; private set; }
-
-        [JsonProperty("beneficiary")]
-        public Beneficiary Beneficiary { get; private set; }
-
-        [JsonProperty("transfer")]
-        public TransferReply Transfer { get; private set; }
-
-        [JsonProperty("vasp")]
-        public VaspInformation Vasp { get; private set; }
 
         public static string GetMessageCode(TransferReplyMessageCode messageCode)
         {

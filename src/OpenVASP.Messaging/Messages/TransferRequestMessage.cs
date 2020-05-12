@@ -11,16 +11,14 @@ namespace OpenVASP.Messaging.Messages
             Message message,
             Originator originator,
             Beneficiary beneficiary,
-            TransferRequest transfer,
-            VaspInformation vasp)
+            TransferRequest transfer)
         {
             return new TransferRequestMessage
             {
                 Message = message,
                 Originator = originator,
                 Beneficiary = beneficiary,
-                Transfer = transfer,
-                Vasp = vasp
+                Transfer = transfer
             };
         }
 
@@ -28,16 +26,14 @@ namespace OpenVASP.Messaging.Messages
             string sessionId,
             Originator originator,
             Beneficiary beneficiary,
-            TransferRequest transfer,
-            VaspInformation vasp)
+            TransferRequest transfer)
         {
             return new TransferRequestMessage
             {
                 Message = new Message(Guid.NewGuid().ToByteArray().ToHex(true), sessionId, "1", MessageType.TransferRequest),
                 Originator = originator,
                 Beneficiary = beneficiary,
-                Transfer = transfer,
-                Vasp = vasp
+                Transfer = transfer
             };
         }
 
@@ -49,8 +45,5 @@ namespace OpenVASP.Messaging.Messages
 
         [JsonProperty("transfer")]
         public TransferRequest Transfer { get; private set; }
-
-        [JsonProperty("vasp")]
-        public VaspInformation Vasp { get; private set; }
     }
 }

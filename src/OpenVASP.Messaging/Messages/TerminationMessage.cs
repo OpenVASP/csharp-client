@@ -7,16 +7,15 @@ namespace OpenVASP.Messaging.Messages
 {
     public class TerminationMessage : MessageBase
     {
-        public static TerminationMessage Create(Message message, VaspInformation vasp)
+        public static TerminationMessage Create(Message message)
         {
             return new TerminationMessage
             {
-                Message = message,
-                Vasp = vasp,
+                Message = message
             };
         }
 
-        public static TerminationMessage Create(string sessionId, TerminationMessageCode messageCode, VaspInformation vasp)
+        public static TerminationMessage Create(string sessionId, TerminationMessageCode messageCode)
         {
             return new TerminationMessage
             {
@@ -24,13 +23,9 @@ namespace OpenVASP.Messaging.Messages
                 Guid.NewGuid().ToByteArray().ToHex(true),
                     sessionId,
                     GetMessageCode(messageCode),
-                    MessageType.Termination),
-                Vasp = vasp
+                    MessageType.Termination)
             };
         }
-
-        [JsonProperty("vasp")]
-        public VaspInformation Vasp { get; private set; }
 
         public TerminationMessageCode GetMessageCode()
         {

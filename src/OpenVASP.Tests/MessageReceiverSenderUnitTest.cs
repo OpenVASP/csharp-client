@@ -112,27 +112,6 @@ namespace OpenVASP.Tests
             Assert.Equal(request.Message.MessageType, response.Message.MessageType);
             Assert.Equal(request.Message.MessageCode, response.Message.MessageCode);
             Assert.Equal(request.Message.MessageId, response.Message.MessageId);
-
-            AssertPlaceOfBirth(request.Vasp.PlaceOfBirth, response.Vasp.PlaceOfBirth);
-
-            Assert.Equal(request.Vasp.BIC, response.Vasp.BIC);
-            Assert.Equal(request.Vasp.Name, response.Vasp.Name);
-            Assert.Equal(request.Vasp.VaspPublickKey, response.Vasp.VaspPublickKey);
-            Assert.Equal(request.Vasp.VaspIdentity, response.Vasp.VaspIdentity);
-
-            Assert.Equal(request.Vasp.PostalAddress.StreetName, response.Vasp.PostalAddress.StreetName);
-            Assert.Equal(request.Vasp.PostalAddress.AddressLine, response.Vasp.PostalAddress.AddressLine);
-            Assert.Equal(request.Vasp.PostalAddress.BuildingNumber, response.Vasp.PostalAddress.BuildingNumber);
-            Assert.Equal(request.Vasp.PostalAddress.Country, response.Vasp.PostalAddress.Country);
-            Assert.Equal(request.Vasp.PostalAddress.PostCode, response.Vasp.PostalAddress.PostCode);
-
-            Assert.Equal(request.Vasp.JuridicalPersonIds.Count(), response.Vasp.JuridicalPersonIds.Count());
-
-            AssertJuridicalPersonIds(request.Vasp.JuridicalPersonIds, response.Vasp.JuridicalPersonIds);
-
-            Assert.Equal(request.Vasp.NaturalPersonIds.Count(), response.Vasp.NaturalPersonIds.Count());
-
-            AssertNaturalPersonIds(request.Vasp.NaturalPersonIds, response.Vasp.NaturalPersonIds);
         }
 
         private void AssertTransferDispatch(TransferDispatchMessage response, TransferDispatchMessage request)
@@ -145,36 +124,6 @@ namespace OpenVASP.Tests
             Assert.Equal(request.Message.MessageType, response.Message.MessageType);
             Assert.Equal(request.Message.MessageCode, response.Message.MessageCode);
             Assert.Equal(request.Message.MessageId, response.Message.MessageId);
-
-            AssertPlaceOfBirth(request.Vasp.PlaceOfBirth, response.Vasp.PlaceOfBirth);
-
-            Assert.Equal(request.Vasp.BIC, response.Vasp.BIC);
-            Assert.Equal(request.Vasp.Name, response.Vasp.Name);
-            Assert.Equal(request.Vasp.VaspPublickKey, response.Vasp.VaspPublickKey);
-            Assert.Equal(request.Vasp.VaspIdentity, response.Vasp.VaspIdentity);
-
-            Assert.Equal(request.Vasp.PostalAddress.StreetName, response.Vasp.PostalAddress.StreetName);
-            Assert.Equal(request.Vasp.PostalAddress.AddressLine, response.Vasp.PostalAddress.AddressLine);
-            Assert.Equal(request.Vasp.PostalAddress.BuildingNumber, response.Vasp.PostalAddress.BuildingNumber);
-            Assert.Equal(request.Vasp.PostalAddress.Country, response.Vasp.PostalAddress.Country);
-            Assert.Equal(request.Vasp.PostalAddress.PostCode, response.Vasp.PostalAddress.PostCode);
-
-            Assert.Equal(request.Vasp.JuridicalPersonIds.Count(), response.Vasp.JuridicalPersonIds.Count());
-
-            AssertJuridicalPersonIds(request.Vasp.JuridicalPersonIds, response.Vasp.JuridicalPersonIds);
-
-            Assert.Equal(request.Vasp.NaturalPersonIds.Count(), response.Vasp.NaturalPersonIds.Count());
-
-            AssertNaturalPersonIds(request.Vasp.NaturalPersonIds, response.Vasp.NaturalPersonIds);
-
-            Assert.Equal(request.Transfer.TransferType, response.Transfer.TransferType);
-            Assert.Equal(request.Transfer.VirtualAssetType, response.Transfer.VirtualAssetType);
-            Assert.Equal(request.Transfer.Amount, response.Transfer.Amount);
-            Assert.Equal(request.Transfer.DestinationAddress, response.Transfer.DestinationAddress);
-
-            AssertBeneficiary(request.Beneficiary, response.Beneficiary);
-
-            AssertOriginator(request.Originator, response.Originator);
 
             AssertTransaction(request.Transaction, response.Transaction);
         }
@@ -189,38 +138,6 @@ namespace OpenVASP.Tests
             Assert.Equal(request.Message.MessageType, response.Message.MessageType);
             Assert.Equal(request.Message.MessageCode, response.Message.MessageCode);
             Assert.Equal(request.Message.MessageId, response.Message.MessageId);
-
-            AssertPlaceOfBirth(request.Vasp.PlaceOfBirth, response.Vasp.PlaceOfBirth);
-
-            Assert.Equal(request.Vasp.BIC, response.Vasp.BIC);
-            Assert.Equal(request.Vasp.Name, response.Vasp.Name);
-            Assert.Equal(request.Vasp.VaspPublickKey, response.Vasp.VaspPublickKey);
-            Assert.Equal(request.Vasp.VaspIdentity, response.Vasp.VaspIdentity);
-
-            Assert.Equal(request.Vasp.PostalAddress.StreetName, response.Vasp.PostalAddress.StreetName);
-            Assert.Equal(request.Vasp.PostalAddress.AddressLine, response.Vasp.PostalAddress.AddressLine);
-            Assert.Equal(request.Vasp.PostalAddress.BuildingNumber, response.Vasp.PostalAddress.BuildingNumber);
-            Assert.Equal(request.Vasp.PostalAddress.Country, response.Vasp.PostalAddress.Country);
-            Assert.Equal(request.Vasp.PostalAddress.PostCode, response.Vasp.PostalAddress.PostCode);
-
-            Assert.Equal(request.Vasp.JuridicalPersonIds.Count(), response.Vasp.JuridicalPersonIds.Count());
-
-            AssertJuridicalPersonIds(request.Vasp.JuridicalPersonIds, response.Vasp.JuridicalPersonIds);
-
-            Assert.Equal(request.Vasp.NaturalPersonIds.Count(), response.Vasp.NaturalPersonIds.Count());
-
-            AssertNaturalPersonIds(request.Vasp.NaturalPersonIds, response.Vasp.NaturalPersonIds);
-
-            Assert.Equal(request.Transfer.TransferType, response.Transfer.TransferType);
-            Assert.Equal(request.Transfer.VirtualAssetType, response.Transfer.VirtualAssetType);
-            Assert.Equal(request.Transfer.Amount, response.Transfer.Amount);
-            Assert.Equal(request.Transfer.DestinationAddress, response.Transfer.DestinationAddress);
-
-            AssertBeneficiary(request.Beneficiary, response.Beneficiary);
-
-            AssertOriginator(request.Originator, response.Originator);
-
-            AssertTransaction(request.Transaction, response.Transaction);
         }
 
         private void AssertTransaction(Transaction request, Transaction response)
@@ -319,27 +236,6 @@ namespace OpenVASP.Tests
             Assert.Equal(request.Message.MessageCode, response.Message.MessageCode);
             Assert.Equal(request.Message.MessageId, response.Message.MessageId);
 
-            AssertPlaceOfBirth(request.Vasp.PlaceOfBirth, response.Vasp.PlaceOfBirth);
-
-            Assert.Equal(request.Vasp.BIC, response.Vasp.BIC);
-            Assert.Equal(request.Vasp.Name, response.Vasp.Name);
-            Assert.Equal(request.Vasp.VaspPublickKey, response.Vasp.VaspPublickKey);
-            Assert.Equal(request.Vasp.VaspIdentity, response.Vasp.VaspIdentity);
-
-            Assert.Equal(request.Vasp.PostalAddress.StreetName, response.Vasp.PostalAddress.StreetName);
-            Assert.Equal(request.Vasp.PostalAddress.AddressLine, response.Vasp.PostalAddress.AddressLine);
-            Assert.Equal(request.Vasp.PostalAddress.BuildingNumber, response.Vasp.PostalAddress.BuildingNumber);
-            Assert.Equal(request.Vasp.PostalAddress.Country, response.Vasp.PostalAddress.Country);
-            Assert.Equal(request.Vasp.PostalAddress.PostCode, response.Vasp.PostalAddress.PostCode);
-
-            Assert.Equal(request.Vasp.JuridicalPersonIds.Count(), response.Vasp.JuridicalPersonIds.Count());
-
-            AssertJuridicalPersonIds(request.Vasp.JuridicalPersonIds, response.Vasp.JuridicalPersonIds);
-
-            Assert.Equal(request.Vasp.NaturalPersonIds.Count(), response.Vasp.NaturalPersonIds.Count());
-
-            AssertNaturalPersonIds(request.Vasp.NaturalPersonIds, response.Vasp.NaturalPersonIds);
-
             Assert.Equal(request.Transfer.TransferType, response.Transfer.TransferType);
             Assert.Equal(request.Transfer.VirtualAssetType, response.Transfer.VirtualAssetType);
             Assert.Equal(request.Transfer.Amount, response.Transfer.Amount);
@@ -359,36 +255,6 @@ namespace OpenVASP.Tests
             Assert.Equal(request.Message.MessageType, response.Message.MessageType);
             Assert.Equal(request.Message.MessageCode, response.Message.MessageCode);
             Assert.Equal(request.Message.MessageId, response.Message.MessageId);
-
-            AssertPlaceOfBirth(request.Vasp.PlaceOfBirth, response.Vasp.PlaceOfBirth);
-
-            Assert.Equal(request.Vasp.BIC, response.Vasp.BIC);
-            Assert.Equal(request.Vasp.Name, response.Vasp.Name);
-            Assert.Equal(request.Vasp.VaspPublickKey, response.Vasp.VaspPublickKey);
-            Assert.Equal(request.Vasp.VaspIdentity, response.Vasp.VaspIdentity);
-
-            Assert.Equal(request.Vasp.PostalAddress.StreetName, response.Vasp.PostalAddress.StreetName);
-            Assert.Equal(request.Vasp.PostalAddress.AddressLine, response.Vasp.PostalAddress.AddressLine);
-            Assert.Equal(request.Vasp.PostalAddress.BuildingNumber, response.Vasp.PostalAddress.BuildingNumber);
-            Assert.Equal(request.Vasp.PostalAddress.Country, response.Vasp.PostalAddress.Country);
-            Assert.Equal(request.Vasp.PostalAddress.PostCode, response.Vasp.PostalAddress.PostCode);
-
-            Assert.Equal(request.Vasp.JuridicalPersonIds.Count(), response.Vasp.JuridicalPersonIds.Count());
-
-            AssertJuridicalPersonIds(request.Vasp.JuridicalPersonIds, response.Vasp.JuridicalPersonIds);
-
-            Assert.Equal(request.Vasp.NaturalPersonIds.Count(), response.Vasp.NaturalPersonIds.Count());
-
-            AssertNaturalPersonIds(request.Vasp.NaturalPersonIds, response.Vasp.NaturalPersonIds);
-
-            Assert.Equal(request.Transfer.TransferType, response.Transfer.TransferType);
-            Assert.Equal(request.Transfer.VirtualAssetType, response.Transfer.VirtualAssetType);
-            Assert.Equal(request.Transfer.Amount, response.Transfer.Amount);
-            Assert.Equal(request.Transfer.DestinationAddress, response.Transfer.DestinationAddress);
-
-            AssertBeneficiary(request.Beneficiary, response.Beneficiary);
-
-            AssertOriginator(request.Originator, response.Originator);
         }
 
         private static void AssertPlaceOfBirth(PlaceOfBirth request, PlaceOfBirth response)
@@ -603,7 +469,7 @@ namespace OpenVASP.Tests
             var transferRequest = new TransferRequest(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000);
 
             var request =
-                TransferRequestMessage.Create(message, originator, beneficiary, transferRequest, vaspInformation);
+                TransferRequestMessage.Create(message, originator, beneficiary, transferRequest);
             request.Comment = "This is test message";
 
             return request;
@@ -663,7 +529,7 @@ namespace OpenVASP.Tests
 
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
 
-            var request = TransferReplyMessage.Create(message, originator, beneficiary, transferReply, vaspInformation);
+            var request = TransferReplyMessage.Create(message);
             request.Comment = "This is test message";
 
             return request;
@@ -724,7 +590,7 @@ namespace OpenVASP.Tests
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
             var transaction = new Transaction("txId", DateTime.UtcNow, "0x0000002");
 
-            var request = TransferDispatchMessage.Create(message, originator, beneficiary, transferReply, transaction, vaspInformation);
+            var request = TransferDispatchMessage.Create(message, transaction);
             request.Comment = "This is test message";
 
             return request;
@@ -785,7 +651,7 @@ namespace OpenVASP.Tests
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
             var transaction = new Transaction("txId", DateTime.UtcNow, "0x0000002");
 
-            var request = TransferConfirmationMessage.Create(message, originator, beneficiary, transferReply, transaction, vaspInformation);
+            var request = TransferConfirmationMessage.Create(message);
             request.Comment = "This is test message";
 
             return request;
@@ -827,7 +693,7 @@ namespace OpenVASP.Tests
                 },
                 "DEUTDEFF");
 
-            var request = TerminationMessage.Create(message, vaspInformation);
+            var request = TerminationMessage.Create(message);
             request.Comment = "This is test message";
             return request;
         }

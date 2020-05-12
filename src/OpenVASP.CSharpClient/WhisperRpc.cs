@@ -81,39 +81,6 @@ namespace OpenVASP.CSharpClient
             return messageHash;
         }
 
-        public async Task<IReadOnlyCollection<SessionRequestMessage>> GetSessionRequestMessages(string messageFilter)
-        {
-            var messages = await GetSessionMessagesAsync(messageFilter);
-            
-            var sessionRequests = messages.Select(x =>
-            {
-                var sessionRequest = x as SessionRequestMessage;
-
-                return sessionRequest;
-            }).Where(x => x != null);
-
-            return sessionRequests.ToArray();
-        }
-
-        public async Task<IReadOnlyCollection<MessageBase>> GetSessionMessagesAsync(string messageFilter)
-        {
-            var messages = await GetMessagesAsync(messageFilter);
-
-            if (messages == null || messages.Count == 0)
-            {
-                return new MessageBase[] { };
-            }
-
-            var serializedMessages = messages.Select(x =>
-            {
-                var message = _messageFormatter.Deserialize(x.Payload);
-
-                return message;
-            }).ToArray();
-
-            return serializedMessages;
-        }
-
         public async Task<IReadOnlyCollection<ReceivedMessage>> GetMessagesAsync(string source)
         {
             try

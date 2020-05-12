@@ -7,59 +7,21 @@ namespace OpenVASP.Messaging.Messages
 {
     public class TransferConfirmationMessage : MessageBase
     {
-        public static TransferConfirmationMessage Create(
-            Message message,
-            Originator originator,
-            Beneficiary beneficiary,
-            TransferReply transfer,
-            Transaction transaction,
-            VaspInformation vasp)
+        public static TransferConfirmationMessage Create(Message message)
         {
             return new TransferConfirmationMessage
             {
-                Message = message,
-                Originator = originator,
-                Beneficiary = beneficiary,
-                Transfer = transfer,
-                Transaction = transaction,
-                Vasp = vasp
+                Message = message
             };
         }
 
-        public static TransferConfirmationMessage Create(
-            string sessionId,
-            TransferConfirmationMessageCode messageCode,
-            Originator originator,
-            Beneficiary beneficiary,
-            TransferReply transfer,
-            Transaction transaction,
-            VaspInformation vasp)
+        public static TransferConfirmationMessage Create(string sessionId, TransferConfirmationMessageCode messageCode)
         {
             return new TransferConfirmationMessage
             {
-                Message = new Message(Guid.NewGuid().ToByteArray().ToHex(true), sessionId, GetMessageCode(messageCode), MessageType.TransferConfirmation),
-                Originator = originator,
-                Beneficiary = beneficiary,
-                Transfer = transfer,
-                Transaction = transaction,
-                Vasp = vasp
+                Message = new Message(Guid.NewGuid().ToByteArray().ToHex(true), sessionId, GetMessageCode(messageCode), MessageType.TransferConfirmation)
             };
         }
-
-        [JsonProperty("originator")]
-        public Originator Originator { get; private set; }
-
-        [JsonProperty("beneficiary")]
-        public Beneficiary Beneficiary { get; private set; }
-
-        [JsonProperty("transfer")]
-        public TransferReply Transfer { get; private set; }
-
-        [JsonProperty("tx")]
-        public Transaction Transaction { get; private set; }
-
-        [JsonProperty("vasp")]
-        public VaspInformation Vasp { get; private set; }
 
         public static string GetMessageCode(TransferConfirmationMessageCode messageCode)
         {

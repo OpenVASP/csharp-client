@@ -86,37 +86,14 @@ namespace OpenVASP.Tests.Client
                 {
                     new NaturalPersonId("Id", NaturalIdentificationType.NationalIdentityNumber, Country.List["DE"]), 
                 });
-
-            var originator = VaspClient.Create(
-                vaspInfoPerson,
-                vaspContractInfoPerson.VaspCode,
-                Settings.PersonHandshakePrivateKeyHex,
-                Settings.PersonSignaturePrivateKeyHex,
-                _ethereumRpc,
-                _fakeEnsProvider,
-                _signService,
-                _transportClient);
-
-            originator.Dispose();
-
-            var beneficiary = VaspClient.Create(
-                vaspInfoJuridical,
-                vaspContractInfoJuridical.VaspCode,
-                Settings.JuridicalHandshakePrivateKeyHex,
-                Settings.JuridicalSignaturePrivateKeyHex,
-                _ethereumRpc,
-                _fakeEnsProvider,
-                _signService,
-                _transportClient);
-
-            beneficiary.Dispose();
-
+            
             var sessionRequestSemaphore = new SemaphoreSlim(0, 1);
             var sessionReplySemaphore = new SemaphoreSlim(0, 1);
             var transferRequestSemaphore = new SemaphoreSlim(0, 1);
             var transferReplySemaphore = new SemaphoreSlim(0, 1);
             var transferConfirmSemaphore = new SemaphoreSlim(0, 1);
             var transferDispatchSemaphore = new SemaphoreSlim(0, 1);
+            var terminationSemaphore = new SemaphoreSlim(0, 1);
 
             var sessionRequestReceived = false;
             var sessionReplyReceived = false;
@@ -124,8 +101,9 @@ namespace OpenVASP.Tests.Client
             var transferReplyReceived = false;
             var transferDispatchReceived = false;
             var transferConfirmReceived = false;
+            var terminationReceived = false;
 
-            originator = VaspClient.Create(
+            var originatorClient = VaspClient.Create(
                 vaspInfoPerson,
                 vaspContractInfoPerson.VaspCode,
                 Settings.PersonHandshakePrivateKeyHex,
@@ -134,34 +112,38 @@ namespace OpenVASP.Tests.Client
                 _fakeEnsProvider,
                 _signService,
                 _transportClient);
-            originator.SessionReplyMessageReceived += evt =>
+            originatorClient.SessionReplyMessageReceived += evt =>
             {
                 sessionReplyReceived = true;
                 sessionReplySemaphore.Release();
 
-                return originator.TransferRequestAsync(evt.SessionId, "name", VirtualAssetType.BTC, 123);
+                return originatorClient.TransferRequestAsync(
+                    evt.SessionId,
+                    originatorDoc,
+                    new Beneficiary("name", beneficiaryVaan.Vaan),
+                    VirtualAssetType.BTC,
+                    123);
             };
-            originator.TransferReplyMessageReceived += evt =>
+            originatorClient.TransferReplyMessageReceived += evt =>
             {
                 transferReplyReceived = true;
                 transferReplySemaphore.Release();
 
-                return originator.TransferDispatchAsync(
+                return originatorClient.TransferDispatchAsync(
                     evt.SessionId,
-                    new TransferReply(VirtualAssetType.BTC, TransferType.BlockchainTransfer, 123, "dest"),
                     "hash",
-                    "sending_addr",
-                    "benef_name");
+                    "sending_addr");
             };
-            originator.TransferConfirmationMessageReceived += evt =>
+            originatorClient.TransferConfirmationMessageReceived += evt =>
             {
                 transferConfirmReceived = true;
                 transferConfirmSemaphore.Release();
 
-                return Task.CompletedTask;
+                return originatorClient.TerminateAsync(evt.SessionId,
+                    TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
             };
 
-            beneficiary = VaspClient.Create(
+            var beneficiaryClient = VaspClient.Create(
                 vaspInfoJuridical,
                 vaspContractInfoJuridical.VaspCode,
                 Settings.JuridicalHandshakePrivateKeyHex,
@@ -170,45 +152,49 @@ namespace OpenVASP.Tests.Client
                 _fakeEnsProvider,
                 _signService,
                 _transportClient);
-            beneficiary.SessionRequestMessageReceived += evt =>
+            beneficiaryClient.SessionRequestMessageReceived += evt =>
             {
                 sessionRequestReceived = true;
                 sessionRequestSemaphore.Release();
 
-                return beneficiary.SessionReplyAsync(evt.SessionId, SessionReplyMessage.SessionReplyMessageCode.SessionAccepted);
+                return beneficiaryClient.SessionReplyAsync(evt.SessionId, SessionReplyMessage.SessionReplyMessageCode.SessionAccepted);
             };
-            beneficiary.TransferRequestMessageReceived += evt =>
+            beneficiaryClient.TransferRequestMessageReceived += evt =>
             {
                 transferRequestReceived = true;
                 transferRequestSemaphore.Release();
 
-                return beneficiary.TransferReplyAsync(
+                return beneficiaryClient.TransferReplyAsync(
                     evt.SessionId,
                     TransferReplyMessage.Create(
                         evt.SessionId,
-                        TransferReplyMessage.TransferReplyMessageCode.TransferAccepted,
-                        originatorDoc,
-                        new Beneficiary("name", "vaan"),
-                        new TransferReply(VirtualAssetType.BTC, TransferType.BlockchainTransfer, 123, "dest"),
-                        vaspInfoJuridical));
+                        TransferReplyMessage.TransferReplyMessageCode.TransferAccepted));
             };
-            beneficiary.TransferDispatchMessageReceived += evt =>
+            beneficiaryClient.TransferDispatchMessageReceived += evt =>
             {
                 transferDispatchReceived = true;
                 transferDispatchSemaphore.Release();
 
-                return beneficiary.TransferConfirmAsync(evt.SessionId, TransferConfirmationMessage.Create(
+                return beneficiaryClient.TransferConfirmAsync(evt.SessionId, TransferConfirmationMessage.Create(
                     evt.SessionId,
-                    TransferConfirmationMessage.TransferConfirmationMessageCode.TransferConfirmed,
-                    originatorDoc,
-                    new Beneficiary("name", "vaan"),
-                    new TransferReply(VirtualAssetType.BTC, TransferType.BlockchainTransfer, 123, "dest"),
-                    new Transaction("txid", DateTime.UtcNow, "sendingaddr"),
-                    vaspInfoJuridical));
+                    TransferConfirmationMessage.TransferConfirmationMessageCode.TransferConfirmed));
+            };
+            beneficiaryClient.TerminationMessageReceived += evt =>
+            {
+                terminationReceived = true;
+                terminationSemaphore.Release();
+
+                return Task.CompletedTask;
             };
 
-            await originator.CreateSessionAsync(originatorDoc, beneficiaryVaan);
+            var sessionInfo = await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode);
 
+            await originatorClient.SessionRequestAsync(sessionInfo.Id);
+            
+            await originatorClient.CloseSessionAsync(sessionInfo.Id);
+            
+            await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode, sessionInfo);
+            
             await Task.WhenAny(
                 Task.Delay(TimeSpan.FromMinutes(2)),
                 Task.WhenAll(
@@ -217,7 +203,8 @@ namespace OpenVASP.Tests.Client
                     transferRequestSemaphore.WaitAsync(),
                     transferReplySemaphore.WaitAsync(),
                     transferDispatchSemaphore.WaitAsync(),
-                    transferConfirmSemaphore.WaitAsync()));
+                    transferConfirmSemaphore.WaitAsync(),
+                    terminationSemaphore.WaitAsync()));
 
             Assert.True(sessionRequestReceived, "Session request message was not delivered");
             Assert.True(sessionReplyReceived, "Session reply message was not delivered");
@@ -225,6 +212,7 @@ namespace OpenVASP.Tests.Client
             Assert.True(transferReplyReceived, "Transfer reply message was not delivered");
             Assert.True(transferDispatchReceived, "Transfer dispatch message was not delivered");
             Assert.True(transferConfirmReceived, "Transfer confirm message was not delivered");
+            Assert.True(terminationReceived, "Termination message was not delivered");
         }
     }
 }
