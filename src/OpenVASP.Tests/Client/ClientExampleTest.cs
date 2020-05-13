@@ -165,7 +165,8 @@ namespace OpenVASP.Tests.Client
                     evt.SessionId,
                     TransferReplyMessage.Create(
                         evt.SessionId,
-                        TransferReplyMessage.TransferReplyMessageCode.TransferAccepted));
+                        TransferReplyMessage.TransferReplyMessageCode.TransferAccepted,
+                        "destinationAddress"));
             };
             beneficiaryClient.TransferDispatchMessageReceived += evt =>
             {

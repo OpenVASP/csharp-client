@@ -529,7 +529,7 @@ namespace OpenVASP.Tests
 
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
 
-            var request = TransferReplyMessage.Create(message);
+            var request = TransferReplyMessage.Create(message, "destinatinoAddress");
             request.Comment = "This is test message";
 
             return request;
