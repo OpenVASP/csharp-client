@@ -14,7 +14,7 @@ namespace OpenVASP.Tests
 {
     public class SerializationTest
     {
-        private static MessageEnvelope _envelope = new MessageEnvelope()
+        private static readonly MessageEnvelope _envelope = new MessageEnvelope()
         {
             SigningKey = "0x74152a90669ef4c166a1d2b140d307181f262142486881f91a9277ee370960d9"
         };
@@ -588,7 +588,7 @@ namespace OpenVASP.Tests
             var beneficiary = new Beneficiary("Ben1", "VaaN");
 
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
-            var transaction = new Transaction("txId", DateTime.UtcNow, "0x0000002");
+            var transaction = new Transaction("txId", "0x0000002");
 
             var request = TransferDispatchMessage.Create(message, transaction);
             request.Comment = "This is test message";
@@ -649,7 +649,7 @@ namespace OpenVASP.Tests
             var beneficiary = new Beneficiary("Ben1", "VaaN");
 
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
-            var transaction = new Transaction("txId", DateTime.UtcNow, "0x0000002");
+            var transaction = new Transaction("txId", "0x0000002");
 
             var request = TransferConfirmationMessage.Create(message);
             request.Comment = "This is test message";

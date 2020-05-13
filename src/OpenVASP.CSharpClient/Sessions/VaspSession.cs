@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Interfaces;
@@ -7,11 +8,12 @@ using OpenVASP.Messaging.Messages;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
-    internal abstract class VaspSession : IDisposable
+    public abstract class VaspSession : IDisposable
     {
         private readonly object _lock = new object();
         private CancellationTokenSource _cancellationTokenSource;
         private readonly ISignService _signService;
+        private readonly VaspSessionInfo _info;
 
         private bool _isListening;
         private ProducerConsumerQueue _producerConsumerQueue;
@@ -20,20 +22,52 @@ namespace OpenVASP.CSharpClient.Sessions
         protected readonly MessageHandlerResolverBuilder _messageHandlerResolverBuilder;
         protected readonly ITransportClient _transportClient;
 
-        public VaspSessionInfo Info { get; }
+        public string Id => _info.Id;
 
         public VaspSession(
             VaspSessionInfo vaspSessionInfo,
             ITransportClient transportClient,
             ISignService signService)
         {
-            Info = vaspSessionInfo;
+            _info = vaspSessionInfo;
             _messageHandlerResolverBuilder = new MessageHandlerResolverBuilder();
             _transportClient = transportClient;
             _signService = signService;
         }
 
-        public void OpenChannel()
+        public void Dispose()
+        {
+            if (_isListening)
+                CloseChannelAsync().GetAwaiter().GetResult();
+
+            _task?.Dispose();
+            _task = null;
+
+            _producerConsumerQueue?.Dispose();
+            _producerConsumerQueue = null;
+
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = null;
+        }
+
+        internal async Task CloseChannelAsync()
+        {
+            try
+            {
+                _cancellationTokenSource?.Cancel();
+
+                if (_task != null)
+                    await _task;
+
+                _isListening = false;
+            }
+            catch (Exception e)
+            {
+                //todo: handle
+            }
+        }
+
+        internal void OpenChannel()
         {
             lock (_lock)
             {
@@ -53,7 +87,7 @@ namespace OpenVASP.CSharpClient.Sessions
 
                     do
                     {
-                        var messages = await _transportClient.GetSessionMessagesAsync(Info.MessageFilter);
+                        var messages = await _transportClient.GetSessionMessagesAsync(_info.MessageFilter);
 
                         if (messages == null || messages.Count == 0)
                         {
@@ -66,7 +100,7 @@ namespace OpenVASP.CSharpClient.Sessions
                             if (!_signService.VerifySign(
                                 message.Payload,
                                 message.Signature,
-                                Info.CounterPartyPublicSigningKey))
+                                _info.CounterPartyPublicSigningKey))
                             {
                                 //TODO: Log this
                                 continue;
@@ -81,29 +115,15 @@ namespace OpenVASP.CSharpClient.Sessions
             }
         }
 
-        public async Task CloseChannelAsync()
+        protected Task TriggerAsyncEvent<T>(Func<T, Task> eventDelegates, T @event)
         {
-            try
-            {
-                Dispose();
+            if (eventDelegates == null)
+                return Task.CompletedTask;
 
-                await _task;
-
-                _isListening = false;
-            }
-            catch (Exception e)
-            {
-                //todo: handle
-            }
-        }
-
-        public void Dispose()
-        {
-            _cancellationTokenSource?.Cancel();
-
-            _task?.Dispose();
-            _producerConsumerQueue?.Dispose();
-            _cancellationTokenSource?.Dispose();
+            var tasks = eventDelegates.GetInvocationList()
+                .OfType<Func<T, Task>>()
+                .Select(d => d(@event));
+            return Task.WhenAll(tasks);
         }
 
         private Task ProcessUnexpectedMessageAsync(MessageBase message, CancellationToken token)
