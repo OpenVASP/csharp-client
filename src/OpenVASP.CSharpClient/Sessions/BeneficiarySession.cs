@@ -60,7 +60,7 @@ namespace OpenVASP.CSharpClient.Sessions
                 return;
 
             var message = SessionReplyMessage.Create(
-                SessionInfo.Id,
+                Id,
                 code.Value,
                 new HandShakeResponse(SessionInfo.Topic),
                 vaspInfo);
