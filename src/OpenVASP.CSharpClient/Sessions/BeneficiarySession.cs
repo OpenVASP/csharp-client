@@ -1,5 +1,7 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
+using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
@@ -7,13 +9,24 @@ using OpenVASP.Messaging.Messages.Entities;
 
 namespace OpenVASP.CSharpClient.Sessions
 {
-    internal class BeneficiarySession : VaspSession
+    public class BeneficiarySession : VaspSession
     {
         private readonly IBeneficiaryVaspCallbacks _beneficiaryVaspCallbacks;
 
         private MessageEnvelope _messageEnvelope;
 
-        public BeneficiarySession(
+        /// <summary>Notifies about received session request message.</summary>
+        public event Func<SessionMessageEvent<SessionRequestMessage>, Task> SessionRequestMessageReceived;
+        /// <summary>Notifies about received transfer request message.</summary>
+        public event Func<SessionMessageEvent<TransferRequestMessage>, Task> TransferRequestMessageReceived;
+        /// <summary>Notifies about received transfer dispatch message.</summary>
+        public event Func<SessionMessageEvent<TransferDispatchMessage>, Task> TransferDispatchMessageReceived;
+        /// <summary>Notifies about received termination message.</summary>
+        public event Func<SessionMessageEvent<TerminationMessage>, Task> TerminationMessageReceived;
+
+        public BeneficiarySessionInfo SessionInfo { get; }
+
+        internal BeneficiarySession(
             BeneficiarySessionInfo sessionInfo,
             IBeneficiaryVaspCallbacks beneficiaryVaspCallbacks,
             ITransportClient transportClient,
@@ -25,6 +38,8 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             _beneficiaryVaspCallbacks = beneficiaryVaspCallbacks;
 
+            SessionInfo = sessionInfo;
+
             _messageHandlerResolverBuilder
                 .AddHandler<TransferRequestMessage>(ProcessTransferRequestMessageAsync)
                 .AddHandler<TransferDispatchMessage>(ProcessTransferDispatchMessageAsync)
@@ -35,19 +50,19 @@ namespace OpenVASP.CSharpClient.Sessions
         {
             _messageEnvelope = new MessageEnvelope
             {
-                EncryptionKey = Info.SymKey,
+                EncryptionKey = SessionInfo.SymKey,
                 EncryptionType = EncryptionType.Symmetric,
-                Topic = Info.CounterPartyTopic,
-                SigningKey = Info.PrivateSigningKey
+                Topic = SessionInfo.CounterPartyTopic,
+                SigningKey = SessionInfo.PrivateSigningKey
             };
 
             if (!code.HasValue)
                 return;
 
             var message = SessionReplyMessage.Create(
-                Info.Id,
+                Id,
                 code.Value,
-                new HandShakeResponse(Info.Topic),
+                new HandShakeResponse(SessionInfo.Topic),
                 vaspInfo);
 
             await _transportClient.SendAsync(_messageEnvelope, message);
@@ -63,19 +78,40 @@ namespace OpenVASP.CSharpClient.Sessions
             await _transportClient.SendAsync(_messageEnvelope, message);
         }
 
-        private Task ProcessTransferRequestMessageAsync(TransferRequestMessage message, CancellationToken token)
+        internal async Task ProcessSessionRequestMessageAsync(SessionRequestMessage message)
         {
-            return _beneficiaryVaspCallbacks.TransferRequestHandlerAsync(message, this);
+            await TriggerAsyncEvent(
+                SessionRequestMessageReceived,
+                new SessionMessageEvent<SessionRequestMessage>(Id, message));
+
+            await _beneficiaryVaspCallbacks.SessionRequestHandlerAsync(message, this);
         }
 
-        private Task ProcessTransferDispatchMessageAsync(TransferDispatchMessage message, CancellationToken token)
+        private async Task ProcessTransferRequestMessageAsync(TransferRequestMessage message, CancellationToken token)
         {
-            return _beneficiaryVaspCallbacks.TransferDispatchHandlerAsync(message, this);
+            await TriggerAsyncEvent(
+                TransferRequestMessageReceived,
+                new SessionMessageEvent<TransferRequestMessage>(Id, message));
+
+            await _beneficiaryVaspCallbacks.TransferRequestHandlerAsync(message, this);
         }
 
-        private Task ProcessTerminationMessageAsync(TerminationMessage message, CancellationToken token)
+        private async Task ProcessTransferDispatchMessageAsync(TransferDispatchMessage message, CancellationToken token)
         {
-            return _beneficiaryVaspCallbacks.TerminationHandlerAsync(message, this);
+            await TriggerAsyncEvent(
+                TransferDispatchMessageReceived,
+                new SessionMessageEvent<TransferDispatchMessage>(Id, message));
+
+            await _beneficiaryVaspCallbacks.TransferDispatchHandlerAsync(message, this);
+        }
+
+        private async Task ProcessTerminationMessageAsync(TerminationMessage message, CancellationToken token)
+        {
+            await TriggerAsyncEvent(
+                TerminationMessageReceived,
+                new SessionMessageEvent<TerminationMessage>(Id, message));
+
+            await _beneficiaryVaspCallbacks.TerminationHandlerAsync(message, this);
         }
     }
 }

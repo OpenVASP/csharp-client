@@ -39,14 +39,14 @@ namespace OpenVASP.CSharpClient
         public event Func<SessionMessageEvent<SessionRequestMessage>, Task> SessionRequestMessageReceived;
         /// <summary>Notifies about received session reply message.</summary>
         public event Func<SessionMessageEvent<SessionReplyMessage>, Task> SessionReplyMessageReceived;
-        /// <summary>Notifies about received transfer reply message.</summary>
-        public event Func<SessionMessageEvent<TransferReplyMessage>, Task> TransferReplyMessageReceived;
-        /// <summary>Notifies about received transfer confirmation message.</summary>
-        public event Func<SessionMessageEvent<TransferConfirmationMessage>, Task> TransferConfirmationMessageReceived;
         /// <summary>Notifies about received transfer request message.</summary>
         public event Func<SessionMessageEvent<TransferRequestMessage>, Task> TransferRequestMessageReceived;
+        /// <summary>Notifies about received transfer reply message.</summary>
+        public event Func<SessionMessageEvent<TransferReplyMessage>, Task> TransferReplyMessageReceived;
         /// <summary>Notifies about received transfer dispatch message.</summary>
         public event Func<SessionMessageEvent<TransferDispatchMessage>, Task> TransferDispatchMessageReceived;
+        /// <summary>Notifies about received transfer confirmation message.</summary>
+        public event Func<SessionMessageEvent<TransferConfirmationMessage>, Task> TransferConfirmationMessageReceived;
         /// <summary>Notifies about received termination message.</summary>
         public event Func<SessionMessageEvent<TerminationMessage>, Task> TerminationMessageReceived;
 
@@ -55,16 +55,10 @@ namespace OpenVASP.CSharpClient
         /// </summary>
         public VaspCode VaspCode { get; }
 
-        /// <summary>
-        /// VASP Information
-        /// </summary>
-        public VaspInformation VaspInfo { get; }
-
         public  VaspClient(
             ECDH_Key handshakeKey,
             string signatureHexKey,
             VaspCode vaspCode,
-            VaspInformation vaspInfo,
             IEthereumRpc nodeClientEthereumRpc,
             IEnsProvider ensProvider,
             ITransportClient transportClient,
@@ -72,7 +66,6 @@ namespace OpenVASP.CSharpClient
         {
             _signatureKey = signatureHexKey;
             VaspCode = vaspCode;
-            VaspInfo = vaspInfo;
             _ethereumRpc = nodeClientEthereumRpc;
             _ensProvider = ensProvider;
             _transportClient = transportClient;
@@ -83,45 +76,45 @@ namespace OpenVASP.CSharpClient
                 {
                     await TriggerAsyncEvent(
                         SessionReplyMessageReceived,
-                        new SessionMessageEvent<SessionReplyMessage>(session.Info.Id, message));
+                        new SessionMessageEvent<SessionReplyMessage>(session.Id, message));
                 },
                 async (message, session) =>
                 {
                     await TriggerAsyncEvent(
                         TransferReplyMessageReceived,
-                        new SessionMessageEvent<TransferReplyMessage>(session.Info.Id, message));
+                        new SessionMessageEvent<TransferReplyMessage>(session.Id, message));
                 },
                 async (message, session) =>
                 {
                     await TriggerAsyncEvent(
                         TransferConfirmationMessageReceived,
-                        new SessionMessageEvent<TransferConfirmationMessage>(session.Info.Id, message));
+                        new SessionMessageEvent<TransferConfirmationMessage>(session.Id, message));
                 });
 
             _beneficiaryVaspCallbacks = new BeneficiaryVaspCallbacks(
-                async (request, currentSession) =>
+                async (request, session) =>
                 {
                     await TriggerAsyncEvent(
                         SessionRequestMessageReceived,
-                        new SessionMessageEvent<SessionRequestMessage>(currentSession.Info.Id, request));
+                        new SessionMessageEvent<SessionRequestMessage>(session.Id, request));
                 },
-                async (request, currentSession) =>
+                async (request, session) =>
                 {
                     await TriggerAsyncEvent(
                         TransferRequestMessageReceived,
-                        new SessionMessageEvent<TransferRequestMessage>(currentSession.Info.Id, request));
+                        new SessionMessageEvent<TransferRequestMessage>(session.Id, request));
                 },
-                async (dispatch, currentSession) =>
+                async (dispatch, session) =>
                 {
                     await TriggerAsyncEvent(
                         TransferDispatchMessageReceived,
-                        new SessionMessageEvent<TransferDispatchMessage>(currentSession.Info.Id, dispatch));
+                        new SessionMessageEvent<TransferDispatchMessage>(session.Id, dispatch));
                 },
-                async (termination, currentSession) =>
+                async (termination, session) =>
                 {
                     await TriggerAsyncEvent(
                         TerminationMessageReceived,
-                        new SessionMessageEvent<TerminationMessage>(currentSession.Info.Id, termination));
+                        new SessionMessageEvent<TerminationMessage>(session.Id, termination));
                 });
 
             _sessionsRequestsListener = new SessionsRequestsListener(
@@ -137,29 +130,26 @@ namespace OpenVASP.CSharpClient
 
         private async Task BeneficiarySessionCreatedAsync(BeneficiarySession session, SessionRequestMessage sessionRequestMessage)
         {
-            _beneficiarySessionsDict.TryAdd(session.Info.Id, session);
+            _beneficiarySessionsDict.TryAdd(session.Id, session);
 
             session.OpenChannel();
 
             await NotifyBeneficiarySessionCreatedAsync(session);
 
-            await _beneficiaryVaspCallbacks.SessionRequestHandlerAsync(sessionRequestMessage, session);
+            await session.ProcessSessionRequestMessageAsync(sessionRequestMessage);
         }
 
         public async Task CloseSessionAsync(string sessionId)
         {
-            var session = (VaspSession) _originatorSessionsDict[sessionId] ?? _beneficiarySessionsDict[sessionId];
-
-            if(session == null)
+            if (_originatorSessionsDict.TryRemove(sessionId, out var originatorSession))
+                await originatorSession.CloseChannelAsync();
+            else if (_beneficiarySessionsDict.TryRemove(sessionId, out var beneficiarySessionSession))
+                await beneficiarySessionSession.CloseChannelAsync();
+            else
                 throw new ArgumentException($"Session with id {sessionId} not found");
-
-            _originatorSessionsDict.TryRemove(sessionId, out _);
-            _beneficiarySessionsDict.TryRemove(sessionId, out _);
-
-            await session.CloseChannelAsync();
         }
 
-        public async Task<BeneficiarySessionInfo> CreateBeneficiarySessionAsync(BeneficiarySessionInfo sessionInfo)
+        public async Task<BeneficiarySession> CreateBeneficiarySessionAsync(BeneficiarySessionInfo sessionInfo)
         {
             var session = new BeneficiarySession(
                 sessionInfo,
@@ -167,39 +157,18 @@ namespace OpenVASP.CSharpClient
                 _transportClient,
                 _signService);
 
-            _beneficiarySessionsDict.TryAdd(session.Info.Id, session);
-
             session.OpenChannel();
 
-            return sessionInfo;
+            _beneficiarySessionsDict.TryAdd(session.Id, session);
+
+            return session;
         }
 
-        public async Task<OriginatorSessionInfo> CreateOriginatorSessionAsync(VaspCode vaspCode, OriginatorSessionInfo sessionInfo = null)
+        public async Task<OriginatorSession> CreateOriginatorSessionAsync(VaspCode vaspCode, OriginatorSessionInfo sessionInfo = null)
         {
             if (sessionInfo == null)
             {
-                var counterPartyVaspContractAddress = await _ensProvider.GetContractAddressByVaspCodeAsync(vaspCode);
-                var contractInfo = await _ethereumRpc.GetVaspContractInfoAync(counterPartyVaspContractAddress);
-                var sessionKey = ECDH_Key.GenerateKey();
-                var sharedKey = sessionKey.GenerateSharedSecretHex(contractInfo.HandshakeKey);
-                var topic = TopicGenerator.GenerateSessionTopic();
-                var symKey = await _transportClient.RegisterSymKeyAsync(sharedKey);
-                var messageFilter = await _transportClient.CreateMessageFilterAsync(
-                    topic,
-                    symKeyId: symKey);
-
-                sessionInfo = new OriginatorSessionInfo
-                {
-                    Id = Guid.NewGuid().ToByteArray().ToHex(true),
-                    PrivateSigningKey = _signatureKey,
-                    SharedEncryptionKey = sharedKey,
-                    CounterPartyPublicSigningKey = contractInfo.SigningKey,
-                    Topic = topic,
-                    PublicHandshakeKey = contractInfo.HandshakeKey,
-                    PublicEncryptionKey =  sessionKey.PublicKey,
-                    MessageFilter = messageFilter,
-                    SymKey = symKey
-                };
+                sessionInfo = await GenerateOriginatorSessionInfoAsync(vaspCode);
             }
 
             var session = new OriginatorSession(
@@ -211,94 +180,12 @@ namespace OpenVASP.CSharpClient
 
             session.OpenChannel();
 
-            _originatorSessionsDict.TryAdd(session.Info.Id, session);
+            _originatorSessionsDict.TryAdd(session.Id, session);
 
-            return sessionInfo;
-        }
-
-        public async Task SessionRequestAsync(string sessionId)
-        {
-            if (!_originatorSessionsDict.TryGetValue(sessionId, out var session))
-                throw new ArgumentException($"Originator session with id {sessionId} not found");
-            
-            await session.SessionRequestAsync(VaspInfo);
-        }
-
-        public async Task SessionReplyAsync(string sessionId, SessionReplyMessage.SessionReplyMessageCode code)
-        {
-            if (!_beneficiarySessionsDict.TryGetValue(sessionId, out var session))
-                throw new ArgumentException($"Beneficiary session with id {sessionId} not found");
-
-            await session.SessionReplyAsync(VaspInfo, code);
-        }
-
-        public async Task TerminateAsync(
-            string sessionId,
-            TerminationMessage.TerminationMessageCode code)
-        {
-            if (!_originatorSessionsDict.TryGetValue(sessionId, out var session))
-                throw new ArgumentException($"Originator session with id {sessionId} not found");
-
-            await session.TerminateAsync(code);
-        }
-
-        public async Task TransferRequestAsync(
-            string sessionId,
-            Originator originator,
-            Beneficiary beneficiary,
-            VirtualAssetType type,
-            decimal amount)
-        {
-            if (!_originatorSessionsDict.TryGetValue(sessionId, out var session))
-                throw new ArgumentException($"Originator session with id {sessionId} not found");
-
-            await session.TransferRequestAsync(
-                originator,
-                beneficiary,
-                new TransferInstruction
-                {
-                    VirtualAssetTransfer = new VirtualAssetTransfer
-                    {
-                        TransferType = TransferType.BlockchainTransfer,
-                        VirtualAssetType = type,
-                        TransferAmount = amount
-                    }
-                });
-        }
-
-        public async Task TransferReplyAsync(string sessionId, TransferReplyMessage message)
-        {
-            if (!_beneficiarySessionsDict.TryGetValue(sessionId, out var session))
-                throw new ArgumentException($"Beneficiary session with id {sessionId} not found");
-
-            await session.SendTransferReplyMessageAsync(message);
-        }
-
-        public async Task TransferDispatchAsync(
-            string sessionId,
-            string transactionHash,
-            string sendingAddress)
-        {
-            if (!_originatorSessionsDict.TryGetValue(sessionId, out var session))
-                throw new ArgumentException($"Originator session with id {sessionId} not found");
-
-            await session.TransferDispatchAsync(
-                new Transaction(
-                    transactionHash,
-                    DateTime.UtcNow,
-                    sendingAddress));
-        }
-
-        public async Task TransferConfirmAsync(string sessionId, TransferConfirmationMessage message)
-        {
-            if (!_beneficiarySessionsDict.TryGetValue(sessionId, out var session))
-                throw new ArgumentException($"Beneficiary session with id {sessionId} not found");
-
-            await session.SendTransferConfirmationMessageAsync(message);
+            return session;
         }
 
         public static VaspClient Create(
-            VaspInformation vaspInfo,
             VaspCode vaspCode,
             string handshakePrivateKeyHex,
             string signaturePrivateKeyHex,
@@ -313,7 +200,6 @@ namespace OpenVASP.CSharpClient
                 handshakeKey,
                 signaturePrivateKeyHex,
                 vaspCode,
-                vaspInfo,
                 nodeClientEthereumRpc,
                 ensProvider,
                 transportClient,
@@ -341,7 +227,7 @@ namespace OpenVASP.CSharpClient
 
         private async Task NotifyBeneficiarySessionCreatedAsync(BeneficiarySession session)
         {
-            var @event = new BeneficiarySessionCreatedEvent(session.Info.Id, (BeneficiarySessionInfo) session.Info);
+            var @event = new BeneficiarySessionCreatedEvent(session);
 
             await TriggerAsyncEvent(BeneficiarySessionCreated, @event);
         }
@@ -355,6 +241,32 @@ namespace OpenVASP.CSharpClient
                 .OfType<Func<T, Task>>()
                 .Select(d => d(@event));
             return Task.WhenAll(tasks);
+        }
+
+        private async Task<OriginatorSessionInfo> GenerateOriginatorSessionInfoAsync(VaspCode vaspCode)
+        {
+            var counterPartyVaspContractAddress = await _ensProvider.GetContractAddressByVaspCodeAsync(vaspCode);
+            var contractInfo = await _ethereumRpc.GetVaspContractInfoAync(counterPartyVaspContractAddress);
+            var sessionKey = ECDH_Key.GenerateKey();
+            var sharedKey = sessionKey.GenerateSharedSecretHex(contractInfo.HandshakeKey);
+            var topic = TopicGenerator.GenerateSessionTopic();
+            var symKey = await _transportClient.RegisterSymKeyAsync(sharedKey);
+            var messageFilter = await _transportClient.CreateMessageFilterAsync(
+                topic,
+                symKeyId: symKey);
+
+            return new OriginatorSessionInfo
+            {
+                Id = Guid.NewGuid().ToByteArray().ToHex(true),
+                PrivateSigningKey = _signatureKey,
+                SharedEncryptionKey = sharedKey,
+                CounterPartyPublicSigningKey = contractInfo.SigningKey,
+                Topic = topic,
+                PublicHandshakeKey = contractInfo.HandshakeKey,
+                PublicEncryptionKey = sessionKey.PublicKey,
+                MessageFilter = messageFilter,
+                SymKey = symKey
+            };
         }
     }
 }

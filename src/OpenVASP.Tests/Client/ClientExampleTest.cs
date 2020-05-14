@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Nethereum.Web3;
 using OpenVASP.CSharpClient;
 using OpenVASP.CSharpClient.Interfaces;
+using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
@@ -83,7 +84,7 @@ namespace OpenVASP.Tests.Client
                 {
                     new NaturalPersonId("Id", NaturalIdentificationType.NationalIdentityNumber, Country.List["DE"]), 
                 });
-            
+
             var sessionRequestSemaphore = new SemaphoreSlim(0, 1);
             var sessionReplySemaphore = new SemaphoreSlim(0, 1);
             var transferRequestSemaphore = new SemaphoreSlim(0, 1);
@@ -101,7 +102,6 @@ namespace OpenVASP.Tests.Client
             var terminationReceived = false;
 
             var originatorClient = VaspClient.Create(
-                vaspInfoPerson,
                 vaspCodePerson,
                 _settings.PersonHandshakePrivateKeyHex,
                 _settings.PersonSignaturePrivateKeyHex,
@@ -109,13 +109,13 @@ namespace OpenVASP.Tests.Client
                 _fakeEnsProvider,
                 _signService,
                 _transportClient);
+            var originatorSession = await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode);
             originatorClient.SessionReplyMessageReceived += evt =>
             {
                 sessionReplyReceived = true;
                 sessionReplySemaphore.Release();
 
-                return originatorClient.TransferRequestAsync(
-                    evt.SessionId,
+                return originatorSession.TransferRequestAsync(
                     originatorDoc,
                     new Beneficiary("name", beneficiaryVaan.Vaan),
                     VirtualAssetType.BTC,
@@ -126,22 +126,18 @@ namespace OpenVASP.Tests.Client
                 transferReplyReceived = true;
                 transferReplySemaphore.Release();
 
-                return originatorClient.TransferDispatchAsync(
-                    evt.SessionId,
-                    "hash",
-                    "sending_addr");
+                return originatorSession.TransferDispatchAsync("hash", "sending_addr");
             };
             originatorClient.TransferConfirmationMessageReceived += evt =>
             {
                 transferConfirmReceived = true;
                 transferConfirmSemaphore.Release();
 
-                return originatorClient.TerminateAsync(evt.SessionId,
-                    TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
+                return originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
             };
 
+            BeneficiarySession beneficiarySession = null;
             var beneficiaryClient = VaspClient.Create(
-                vaspInfoJuridical,
                 vaspCodeJuridical,
                 _settings.JuridicalHandshakePrivateKeyHex,
                 _settings.JuridicalSignaturePrivateKeyHex,
@@ -149,50 +145,52 @@ namespace OpenVASP.Tests.Client
                 _fakeEnsProvider,
                 _signService,
                 _transportClient);
-            beneficiaryClient.SessionRequestMessageReceived += evt =>
+            beneficiaryClient.BeneficiarySessionCreated += t =>
             {
-                sessionRequestReceived = true;
-                sessionRequestSemaphore.Release();
+                beneficiarySession = t.Session;
+                beneficiarySession.SessionRequestMessageReceived += evt =>
+                {
+                    sessionRequestReceived = true;
+                    sessionRequestSemaphore.Release();
 
-                return beneficiaryClient.SessionReplyAsync(evt.SessionId, SessionReplyMessage.SessionReplyMessageCode.SessionAccepted);
-            };
-            beneficiaryClient.TransferRequestMessageReceived += evt =>
-            {
-                transferRequestReceived = true;
-                transferRequestSemaphore.Release();
+                    return beneficiarySession.SessionReplyAsync(vaspInfoJuridical, SessionReplyMessage.SessionReplyMessageCode.SessionAccepted);
+                };
+                beneficiarySession.TransferRequestMessageReceived += evt =>
+                {
+                    transferRequestReceived = true;
+                    transferRequestSemaphore.Release();
 
-                return beneficiaryClient.TransferReplyAsync(
-                    evt.SessionId,
-                    TransferReplyMessage.Create(
+                    return beneficiarySession.SendTransferReplyMessageAsync(
+                        TransferReplyMessage.Create(
+                            evt.SessionId,
+                            TransferReplyMessage.TransferReplyMessageCode.TransferAccepted,
+                            "destinationAddress"));
+                };
+                beneficiarySession.TransferDispatchMessageReceived += evt =>
+                {
+                    transferDispatchReceived = true;
+                    transferDispatchSemaphore.Release();
+
+                    return beneficiarySession.SendTransferConfirmationMessageAsync(TransferConfirmationMessage.Create(
                         evt.SessionId,
-                        TransferReplyMessage.TransferReplyMessageCode.TransferAccepted,
-                        "destinationAddress"));
-            };
-            beneficiaryClient.TransferDispatchMessageReceived += evt =>
-            {
-                transferDispatchReceived = true;
-                transferDispatchSemaphore.Release();
+                        TransferConfirmationMessage.TransferConfirmationMessageCode.TransferConfirmed));
+                };
+                beneficiarySession.TerminationMessageReceived += evt =>
+                {
+                    terminationReceived = true;
+                    terminationSemaphore.Release();
 
-                return beneficiaryClient.TransferConfirmAsync(evt.SessionId, TransferConfirmationMessage.Create(
-                    evt.SessionId,
-                    TransferConfirmationMessage.TransferConfirmationMessageCode.TransferConfirmed));
-            };
-            beneficiaryClient.TerminationMessageReceived += evt =>
-            {
-                terminationReceived = true;
-                terminationSemaphore.Release();
-
+                    return Task.CompletedTask;
+                };
                 return Task.CompletedTask;
             };
 
-            var sessionInfo = await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode);
+            await originatorSession.SessionRequestAsync(vaspInfoPerson);
 
-            await originatorClient.SessionRequestAsync(sessionInfo.Id);
-            
-            await originatorClient.CloseSessionAsync(sessionInfo.Id);
-            
-            await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode, sessionInfo);
-            
+            await originatorSession.CloseChannelAsync();
+
+            originatorSession = await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode, originatorSession.SessionInfo);
+
             await Task.WhenAny(
                 Task.Delay(TimeSpan.FromMinutes(2)),
                 Task.WhenAll(
