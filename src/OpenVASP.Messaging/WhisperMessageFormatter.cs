@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Newtonsoft.Json;
 using OpenVASP.Messaging.Messages;
@@ -8,6 +9,13 @@ namespace OpenVASP.Messaging
 {
     public class WhisperMessageFormatter : IMessageFormatter
     {
+        private readonly ILogger<WhisperMessageFormatter> _logger;
+
+        public WhisperMessageFormatter(ILogger<WhisperMessageFormatter> logger)
+        {
+            _logger = logger;
+        }
+
         public string GetPayload(MessageBase messageBase)
         {
             switch (messageBase.Message.MessageType)
@@ -56,15 +64,15 @@ namespace OpenVASP.Messaging
 
                 default:
                     throw new ArgumentException(
-                        $"Message of type {messageBase.GetType()} contains enum message type {messageBase.Message.MessageType}" +
-                        $"which is not supported");
+                        $"Message of type {messageBase.GetType()} contains enum message type {messageBase.Message.MessageType}"
+                        + "which is not supported");
             }
         }
 
         public MessageBase Deserialize(string payload)
         {
             payload = payload.HexToUTF8String();
-            
+
             var message = JsonConvert.DeserializeObject<MessageBase>(payload);
             switch (message.Message.MessageType)
             {
@@ -102,8 +110,7 @@ namespace OpenVASP.Messaging
                 }
 
                 default:
-
-                    //TODO: Probably log it
+                    _logger.LogWarning($"Message type {message.Message.MessageType} is not supported");
                     break;
             }
 

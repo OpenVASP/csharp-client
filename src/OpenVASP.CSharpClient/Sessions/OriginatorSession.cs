@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using OpenVASP.CSharpClient.Events;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
@@ -30,11 +31,13 @@ namespace OpenVASP.CSharpClient.Sessions
             VaspCode vaspCode,
             ITransportClient transportClient,
             ISignService signService,
-            IOriginatorVaspCallbacks originatorVaspCallbacks)
+            IOriginatorVaspCallbacks originatorVaspCallbacks,
+            ILoggerFactory loggerFactory)
             : base(
                 sessionInfo,
                 transportClient,
-                signService)
+                signService,
+                loggerFactory)
         {
             _vaspCode = vaspCode;
             _originatorVaspCallbacks = originatorVaspCallbacks;

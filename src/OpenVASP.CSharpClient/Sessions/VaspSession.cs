@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
@@ -14,6 +15,8 @@ namespace OpenVASP.CSharpClient.Sessions
         private CancellationTokenSource _cancellationTokenSource;
         private readonly ISignService _signService;
         private readonly VaspSessionInfo _info;
+        private readonly ILoggerFactory _loggerFactory;
+        private readonly ILogger<VaspSession> _logger;
 
         private bool _isListening;
         private ProducerConsumerQueue _producerConsumerQueue;
@@ -24,15 +27,18 @@ namespace OpenVASP.CSharpClient.Sessions
 
         public string Id => _info.Id;
 
-        public VaspSession(
+        protected VaspSession(
             VaspSessionInfo vaspSessionInfo,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            ILoggerFactory loggerFactory)
         {
             _info = vaspSessionInfo;
             _messageHandlerResolverBuilder = new MessageHandlerResolverBuilder();
             _transportClient = transportClient;
             _signService = signService;
+            _loggerFactory = loggerFactory;
+            _logger = loggerFactory.CreateLogger<VaspSession>();
         }
 
         public void Dispose()
@@ -63,7 +69,7 @@ namespace OpenVASP.CSharpClient.Sessions
             }
             catch (Exception e)
             {
-                //todo: handle
+                _logger.LogError(e, "Failed to close session channel");
             }
         }
 
@@ -83,7 +89,10 @@ namespace OpenVASP.CSharpClient.Sessions
                 {
                     _messageHandlerResolverBuilder.AddDefaultHandler(ProcessUnexpectedMessageAsync);
                     var messageHandlerResolver = _messageHandlerResolverBuilder.Build();
-                    _producerConsumerQueue = new ProducerConsumerQueue(messageHandlerResolver, cancellationToken);
+                    _producerConsumerQueue = new ProducerConsumerQueue(
+                        messageHandlerResolver,
+                        cancellationToken,
+                        _loggerFactory.CreateLogger<ProducerConsumerQueue>());
 
                     do
                     {
@@ -102,7 +111,8 @@ namespace OpenVASP.CSharpClient.Sessions
                                 message.Signature,
                                 _info.CounterPartyPublicSigningKey))
                             {
-                                //TODO: Log this
+                                _logger.LogWarning(
+                                    $"Couldn't verify a message with payload {message.Payload} and signature {message.Signature}");
                                 continue;
                             }
 
@@ -128,7 +138,7 @@ namespace OpenVASP.CSharpClient.Sessions
 
         private Task ProcessUnexpectedMessageAsync(MessageBase message, CancellationToken token)
         {
-            // TODO log this;
+            _logger.LogWarning($"Received unexpected message of type {message.GetType()}");
 
             return Task.CompletedTask;
         }

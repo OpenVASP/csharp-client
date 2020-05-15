@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.Signer;
 using OpenVASP.CSharpClient;
@@ -19,12 +20,14 @@ namespace OpenVASP.Tests
             SigningKey = "0x74152a90669ef4c166a1d2b140d307181f262142486881f91a9277ee370960d9"
         };
 
+        private readonly WhisperMessageFormatter _messageFormatter = new WhisperMessageFormatter(new NullLogger<WhisperMessageFormatter>());
+
         [Fact]
         public async Task TestSendingSessionRequestMessage()
         {
             var request = GetSessionRequestMessage();
 
-            var fakeTransport = new FakeTransportClient(new WhisperMessageFormatter(), new WhisperSignService());
+            var fakeTransport = new FakeTransportClient(_messageFormatter, new WhisperSignService());
             var messageHash = await fakeTransport.SendAsync(_envelope, request);
             var receivedMessage =  (await fakeTransport.GetSessionMessagesAsync("fake")).First();
 
@@ -36,7 +39,7 @@ namespace OpenVASP.Tests
         {
             var request = GetSessionReplyMessage();
 
-            var fakeTransport = new FakeTransportClient(new WhisperMessageFormatter(), new WhisperSignService());
+            var fakeTransport = new FakeTransportClient(_messageFormatter, new WhisperSignService());
             var messageHash = await fakeTransport.SendAsync(_envelope, request);
             var response = (await fakeTransport.GetSessionMessagesAsync("fake")).First();
 
@@ -48,7 +51,7 @@ namespace OpenVASP.Tests
         {
             var request = GetTransferRequestMessage();
 
-            var fakeTransport = new FakeTransportClient(new WhisperMessageFormatter(), new WhisperSignService());
+            var fakeTransport = new FakeTransportClient(_messageFormatter, new WhisperSignService());
             var messageHash = await fakeTransport.SendAsync(_envelope, request);
             var response = (await fakeTransport.GetSessionMessagesAsync("fake")).First();
 
@@ -60,7 +63,7 @@ namespace OpenVASP.Tests
         {
             var request = GetTransferReplyMessage();
 
-            var fakeTransport = new FakeTransportClient(new WhisperMessageFormatter(), new WhisperSignService());
+            var fakeTransport = new FakeTransportClient(_messageFormatter, new WhisperSignService());
             var messageHash = await fakeTransport.SendAsync(_envelope, request);
             var response = (await fakeTransport.GetSessionMessagesAsync("fake")).First();
 
@@ -72,7 +75,7 @@ namespace OpenVASP.Tests
         {
             var request = GetTransferDispatchMessage();
 
-            var fakeTransport = new FakeTransportClient(new WhisperMessageFormatter(), new WhisperSignService());
+            var fakeTransport = new FakeTransportClient(_messageFormatter, new WhisperSignService());
             var messageHash = await fakeTransport.SendAsync(_envelope, request);
             var response = (await fakeTransport.GetSessionMessagesAsync("fake")).First();
 
@@ -84,7 +87,7 @@ namespace OpenVASP.Tests
         {
             var request = GetTransferConfirmationMessage();
 
-            var fakeTransport = new FakeTransportClient(new WhisperMessageFormatter(), new WhisperSignService());
+            var fakeTransport = new FakeTransportClient(_messageFormatter, new WhisperSignService());
             var messageHash = await fakeTransport.SendAsync(_envelope, request);
             var response = (await fakeTransport.GetSessionMessagesAsync("fake")).First();
 
@@ -95,7 +98,7 @@ namespace OpenVASP.Tests
         public async Task TestSendingTerminationMessage()
         {
             var request = GetTerminationMessage();
-            var fakeTransport = new FakeTransportClient(new WhisperMessageFormatter(), new WhisperSignService());
+            var fakeTransport = new FakeTransportClient(_messageFormatter, new WhisperSignService());
             var messageHash = await fakeTransport.SendAsync(_envelope, request);
             var response = (await fakeTransport.GetSessionMessagesAsync("fake")).First();
 

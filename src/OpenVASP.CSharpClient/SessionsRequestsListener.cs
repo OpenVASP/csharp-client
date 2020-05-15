@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using OpenVASP.CSharpClient.Cryptography;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.CSharpClient.Sessions;
@@ -26,6 +27,8 @@ namespace OpenVASP.CSharpClient
         private readonly IEthereumRpc _ethereumRpc;
         private readonly ITransportClient _transportClient;
         private readonly ISignService _signService;
+        private readonly ILoggerFactory _loggerFactory;
+        private readonly ILogger<SessionsRequestsListener> _logger;
         private readonly object _lock = new object();
 
         /// <summary>
@@ -39,7 +42,8 @@ namespace OpenVASP.CSharpClient
             VaspCode vaspCode,
             IEthereumRpc ethereumRpc,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            ILoggerFactory loggerFactory)
         {
             _handshakeKey = handshakeKey;
             _signatureKey = signatureKey;
@@ -47,6 +51,8 @@ namespace OpenVASP.CSharpClient
             _ethereumRpc = ethereumRpc;
             _transportClient = transportClient;
             _signService = signService;
+            _loggerFactory = loggerFactory;
+            _logger = loggerFactory.CreateLogger<SessionsRequestsListener>();
         }
 
         /// <summary>
@@ -99,7 +105,7 @@ namespace OpenVASP.CSharpClient
                                 var filter = await _transportClient.CreateMessageFilterAsync(
                                     topic,
                                     symKeyId: symKey);
-                                
+
                                 var sessionInfo = new BeneficiarySessionInfo
                                 {
                                     Id = sessionRequestMessage.Message.SessionId,
@@ -116,7 +122,8 @@ namespace OpenVASP.CSharpClient
                                     sessionInfo,
                                     callbacks,
                                     _transportClient,
-                                    _signService);
+                                    _signService,
+                                    _loggerFactory);
 
                                 if (SessionCreated != null)
                                 {
@@ -152,7 +159,7 @@ namespace OpenVASP.CSharpClient
             }
             catch (Exception e)
             {
-                //todo: handle
+                _logger.LogError(e, "Failed to stop");
             }
         }
 

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
 
@@ -16,16 +17,21 @@ namespace OpenVASP.CSharpClient.Sessions
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly ChannelWriter<MessageBase> _writer;
         private readonly ChannelReader<MessageBase> _reader;
+        private readonly ILogger<ProducerConsumerQueue> _logger;
 
         private Task _queueWorker;
 
-        public ProducerConsumerQueue(MessageHandlerResolver messageHandlerResolver, CancellationToken cancellationToken)
+        public ProducerConsumerQueue(
+            MessageHandlerResolver messageHandlerResolver,
+            CancellationToken cancellationToken,
+            ILogger<ProducerConsumerQueue> logger)
         {
             _messageHandlerResolver = messageHandlerResolver;
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var channel = Channel.CreateUnbounded<MessageBase>();
             _writer = channel.Writer;
             _reader = channel.Reader;
+            _logger = logger;
 
             StartWorker();
         }
@@ -58,7 +64,7 @@ namespace OpenVASP.CSharpClient.Sessions
                     }
                     catch (Exception e)
                     {
-                        //TODO: Add logging here
+                        _logger.LogError(e, "Failed to process new messages for ");
                         throw;
                     }
 
@@ -77,8 +83,8 @@ namespace OpenVASP.CSharpClient.Sessions
             }
             catch (Exception e)
             {
-                //TODO: log exception
                 // ignored
+                _logger.LogError(e, "Dispose fail");
             }
 
             _queueWorker?.Dispose();

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nethereum.Web3;
 using OpenVASP.CSharpClient;
 using OpenVASP.CSharpClient.Interfaces;
@@ -19,6 +21,7 @@ namespace OpenVASP.Tests.Client
         private readonly EthereumRpc _ethereumRpc;
         private readonly WhisperTransportClient _transportClient;
         private readonly VaspTestSettings _settings;
+        private readonly ILoggerFactory _loggerFactory = new NullLoggerFactory();
 
         public ClientExampleTest()
         {
@@ -28,8 +31,9 @@ namespace OpenVASP.Tests.Client
             _fakeEnsProvider = new FakeEnsProvider();
             _signService = new WhisperSignService();
             _ethereumRpc = new EthereumRpc(new Web3(ethereumRpcUrl));
-            var whisperRpc = new WhisperRpc(new Web3(whisperRpcUrl), new WhisperMessageFormatter());
-            _transportClient = new WhisperTransportClient(whisperRpc, _signService, new WhisperMessageFormatter());
+            var messageFormatter = new WhisperMessageFormatter(_loggerFactory.CreateLogger<WhisperMessageFormatter>());
+            var whisperRpc = new WhisperRpc(new Web3(whisperRpcUrl), _loggerFactory.CreateLogger<WhisperRpc>());
+            _transportClient = new WhisperTransportClient(whisperRpc, _signService, messageFormatter);
 
             _settings = new VaspTestSettings
             {
@@ -108,7 +112,8 @@ namespace OpenVASP.Tests.Client
                 _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,
-                _transportClient);
+                _transportClient,
+                _loggerFactory);
             var originatorSession = await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode);
             originatorClient.SessionReplyMessageReceived += evt =>
             {
@@ -136,7 +141,6 @@ namespace OpenVASP.Tests.Client
                 return originatorSession.TerminateAsync(TerminationMessage.TerminationMessageCode.SessionClosedTransferOccured);
             };
 
-            BeneficiarySession beneficiarySession = null;
             var beneficiaryClient = VaspClient.Create(
                 vaspCodeJuridical,
                 _settings.JuridicalHandshakePrivateKeyHex,
@@ -144,7 +148,9 @@ namespace OpenVASP.Tests.Client
                 _ethereumRpc,
                 _fakeEnsProvider,
                 _signService,
-                _transportClient);
+                _transportClient,
+                _loggerFactory);
+            BeneficiarySession beneficiarySession;
             beneficiaryClient.BeneficiarySessionCreated += t =>
             {
                 beneficiarySession = t.Session;

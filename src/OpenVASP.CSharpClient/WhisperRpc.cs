@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.RPC.Shh.DTOs;
 using Nethereum.Web3;
 using OpenVASP.CSharpClient.Interfaces;
 using OpenVASP.Messaging;
-using OpenVASP.Messaging.Messages;
 using OpenVASP.Messaging.Messages.Entities;
 
 namespace OpenVASP.CSharpClient
@@ -15,13 +15,14 @@ namespace OpenVASP.CSharpClient
     public class WhisperRpc : IWhisperRpc
     {
         private readonly IWeb3 _web3;
-        private readonly IMessageFormatter _messageFormatter;
+        private readonly ILogger<WhisperRpc> _logger;
 
-        public WhisperRpc(IWeb3 web3, IMessageFormatter messageFormatter)
+        public WhisperRpc(IWeb3 web3, ILogger<WhisperRpc> logger)
         {
-            this._web3 = web3;
-            this._messageFormatter = messageFormatter;
+            _web3 = web3;
+            _logger = logger;
         }
+
         public async Task<string> RegisterSymKeyAsync(string privateKey)
         {
             var symKeyId = await _web3.Shh.SymKey.AddSymKey.SendRequestAsync(privateKey);
@@ -108,6 +109,7 @@ namespace OpenVASP.CSharpClient
             }
             catch (Exception e)
             {
+                _logger.LogError(e, "Failed to get new messages");
                 return new ReceivedMessage[]{};
             }
         }

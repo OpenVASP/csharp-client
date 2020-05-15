@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Nethereum.Hex.HexConvertors.Extensions;
 using OpenVASP.CSharpClient.Cryptography;
 using OpenVASP.CSharpClient.Events;
@@ -32,6 +33,7 @@ namespace OpenVASP.CSharpClient
         private readonly ConcurrentDictionary<string, OriginatorSession> _originatorSessionsDict = 
             new ConcurrentDictionary<string, OriginatorSession>();
         private readonly string _signatureKey;
+        private readonly ILoggerFactory _logFactory;
 
         /// <summary>Notifies about beneficiary session creation.</summary>
         public event Func<BeneficiarySessionCreatedEvent, Task> BeneficiarySessionCreated;
@@ -62,7 +64,8 @@ namespace OpenVASP.CSharpClient
             IEthereumRpc nodeClientEthereumRpc,
             IEnsProvider ensProvider,
             ITransportClient transportClient,
-            ISignService signService)
+            ISignService signService,
+            ILoggerFactory logFactory)
         {
             _signatureKey = signatureHexKey;
             VaspCode = vaspCode;
@@ -70,6 +73,7 @@ namespace OpenVASP.CSharpClient
             _ensProvider = ensProvider;
             _transportClient = transportClient;
             _signService = signService;
+            _logFactory = logFactory;
 
             _originatorVaspCallbacks = new OriginatorVaspCallbacks(
                 async (message, session) =>
@@ -123,7 +127,8 @@ namespace OpenVASP.CSharpClient
                 vaspCode,
                 nodeClientEthereumRpc,
                 transportClient,
-                signService);
+                signService,
+                _logFactory);
             _sessionsRequestsListener.SessionCreated += BeneficiarySessionCreatedAsync;
             _sessionsRequestsListener.StartTopicMonitoring(_beneficiaryVaspCallbacks);
         }
@@ -149,19 +154,20 @@ namespace OpenVASP.CSharpClient
                 throw new ArgumentException($"Session with id {sessionId} not found");
         }
 
-        public async Task<BeneficiarySession> CreateBeneficiarySessionAsync(BeneficiarySessionInfo sessionInfo)
+        public Task<BeneficiarySession> CreateBeneficiarySessionAsync(BeneficiarySessionInfo sessionInfo)
         {
             var session = new BeneficiarySession(
                 sessionInfo,
                 _beneficiaryVaspCallbacks,
                 _transportClient,
-                _signService);
+                _signService,
+                _logFactory);
 
             session.OpenChannel();
 
             _beneficiarySessionsDict.TryAdd(session.Id, session);
 
-            return session;
+            return Task.FromResult(session);
         }
 
         public async Task<OriginatorSession> CreateOriginatorSessionAsync(VaspCode vaspCode, OriginatorSessionInfo sessionInfo = null)
@@ -176,7 +182,8 @@ namespace OpenVASP.CSharpClient
                 vaspCode,
                 _transportClient,
                 _signService,
-                _originatorVaspCallbacks);
+                _originatorVaspCallbacks,
+                _logFactory);
 
             session.OpenChannel();
 
@@ -192,7 +199,8 @@ namespace OpenVASP.CSharpClient
             IEthereumRpc nodeClientEthereumRpc,
             IEnsProvider ensProvider,
             ISignService signService,
-            ITransportClient transportClient)
+            ITransportClient transportClient,
+            ILoggerFactory logFactory)
         {
             var handshakeKey = ECDH_Key.ImportKey(handshakePrivateKeyHex);
 
@@ -203,7 +211,8 @@ namespace OpenVASP.CSharpClient
                 nodeClientEthereumRpc,
                 ensProvider,
                 transportClient,
-                signService);
+                signService,
+                logFactory);
 
             return vaspClient;
         }

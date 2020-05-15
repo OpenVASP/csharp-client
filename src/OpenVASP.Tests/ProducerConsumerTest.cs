@@ -1,5 +1,6 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenVASP.CSharpClient.Sessions;
 using OpenVASP.Messaging;
 using OpenVASP.Messaging.Messages;
@@ -22,8 +23,10 @@ namespace OpenVASP.Tests
                     return Task.CompletedTask;
                 });
             var cancellationTokenSource = new CancellationTokenSource();
-            using (var producerConsumerQueue =
-                new ProducerConsumerQueue(messageResolverBuilder.Build(), cancellationTokenSource.Token))
+            using (var producerConsumerQueue = new ProducerConsumerQueue(
+                messageResolverBuilder.Build(),
+                cancellationTokenSource.Token,
+                new NullLogger<ProducerConsumerQueue>()))
             {
                 var sessionRequestMessage = SessionRequestMessage.Create(
                     "123",
