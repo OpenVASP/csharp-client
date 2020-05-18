@@ -50,7 +50,7 @@ namespace OpenVASP.CSharpClient.Sessions
                 .AddHandler<TransferConfirmationMessage>(ProcessTransferConfirmationMessageAsync);
         }
 
-        public async Task SessionRequestAsync(VaspInformation vaspInfo)
+        public async Task<SessionRequestMessage> SessionRequestAsync(VaspInformation vaspInfo)
         {
             var sessionRequestMessage = SessionRequestMessage.Create(
                 SessionInfo.Id,
@@ -64,9 +64,11 @@ namespace OpenVASP.CSharpClient.Sessions
                 EncryptionType = EncryptionType.Assymetric,
                 EncryptionKey = SessionInfo.PublicHandshakeKey
             }, sessionRequestMessage);
+
+            return sessionRequestMessage;
         }
 
-        public async Task TransferRequestAsync(
+        public async Task<TransferRequestMessage> TransferRequestAsync(
             Originator originator,
             Beneficiary beneficiary,
             VirtualAssetType type,
@@ -92,18 +94,22 @@ namespace OpenVASP.CSharpClient.Sessions
                     instruction.VirtualAssetTransfer.TransferAmount));
 
             await _transportClient.SendAsync(_messageEnvelope, transferRequest);
+
+            return transferRequest;
         }
 
-        public async Task TransferDispatchAsync(string transactionHash, string sendingAddress)
+        public async Task<TransferDispatchMessage> TransferDispatchAsync(string transactionHash, string sendingAddress)
         {
             var transaction = new Transaction(transactionHash, sendingAddress);
 
             var transferDispatch = TransferDispatchMessage.Create(SessionInfo.Id, transaction);
 
             await _transportClient.SendAsync(_messageEnvelope, transferDispatch);
+
+            return transferDispatch;
         }
 
-        public async Task TerminateAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)
+        public async Task<TerminationMessage> TerminateAsync(TerminationMessage.TerminationMessageCode terminationMessageCode)
         {
             var terminationMessage = TerminationMessage.Create(
                 Id,
@@ -116,6 +122,8 @@ namespace OpenVASP.CSharpClient.Sessions
                 EncryptionType = EncryptionType.Symmetric,
                 EncryptionKey = SessionInfo.SymKey
             }, terminationMessage);
+
+            return terminationMessage;
         }
 
         private async Task ProcessSessionReplyMessageAsync(SessionReplyMessage message, CancellationToken token)

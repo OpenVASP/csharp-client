@@ -49,7 +49,7 @@ namespace OpenVASP.CSharpClient.Sessions
                 .AddHandler<TerminationMessage>(ProcessTerminationMessageAsync);
         }
 
-        public async Task SessionReplyAsync(VaspInformation vaspInfo, SessionReplyMessage.SessionReplyMessageCode? code)
+        public async Task<SessionReplyMessage> SessionReplyAsync(VaspInformation vaspInfo, SessionReplyMessage.SessionReplyMessageCode? code)
         {
             _messageEnvelope = new MessageEnvelope
             {
@@ -60,7 +60,7 @@ namespace OpenVASP.CSharpClient.Sessions
             };
 
             if (!code.HasValue)
-                return;
+                return null;
 
             var message = SessionReplyMessage.Create(
                 Id,
@@ -69,16 +69,22 @@ namespace OpenVASP.CSharpClient.Sessions
                 vaspInfo);
 
             await _transportClient.SendAsync(_messageEnvelope, message);
+
+            return message;
         }
 
-        public async Task TransferReplyAsync(TransferReplyMessage message)
+        public async Task<TransferReplyMessage> TransferReplyAsync(TransferReplyMessage message)
         {
             await _transportClient.SendAsync(_messageEnvelope, message);
+
+            return message;
         }
 
-        public async Task TransferConfirmAsync(TransferConfirmationMessage message)
+        public async Task<TransferConfirmationMessage> TransferConfirmAsync(TransferConfirmationMessage message)
         {
             await _transportClient.SendAsync(_messageEnvelope, message);
+
+            return message;
         }
 
         internal async Task ProcessSessionRequestMessageAsync(SessionRequestMessage message)
