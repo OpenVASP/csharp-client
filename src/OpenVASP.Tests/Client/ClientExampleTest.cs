@@ -166,7 +166,7 @@ namespace OpenVASP.Tests.Client
                     transferRequestReceived = true;
                     transferRequestSemaphore.Release();
 
-                    return beneficiarySession.SendTransferReplyMessageAsync(
+                    return beneficiarySession.TransferReplyAsync(
                         TransferReplyMessage.Create(
                             evt.SessionId,
                             TransferReplyMessage.TransferReplyMessageCode.TransferAccepted,
@@ -177,7 +177,7 @@ namespace OpenVASP.Tests.Client
                     transferDispatchReceived = true;
                     transferDispatchSemaphore.Release();
 
-                    return beneficiarySession.SendTransferConfirmationMessageAsync(TransferConfirmationMessage.Create(
+                    return beneficiarySession.TransferConfirmAsync(TransferConfirmationMessage.Create(
                         evt.SessionId,
                         TransferConfirmationMessage.TransferConfirmationMessageCode.TransferConfirmed));
                 };

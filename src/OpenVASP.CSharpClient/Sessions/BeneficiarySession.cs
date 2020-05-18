@@ -71,12 +71,12 @@ namespace OpenVASP.CSharpClient.Sessions
             await _transportClient.SendAsync(_messageEnvelope, message);
         }
 
-        public async Task SendTransferReplyMessageAsync(TransferReplyMessage message)
+        public async Task TransferReplyAsync(TransferReplyMessage message)
         {
             await _transportClient.SendAsync(_messageEnvelope, message);
         }
 
-        public async Task SendTransferConfirmationMessageAsync(TransferConfirmationMessage message)
+        public async Task TransferConfirmAsync(TransferConfirmationMessage message)
         {
             await _transportClient.SendAsync(_messageEnvelope, message);
         }

@@ -19,7 +19,7 @@ namespace OpenVASP.CSharpClient
     /// It start listening to incoming Session Requests as beneficiary Vasp.
     /// It can request a session from beneficiary Vasp as originator.
     /// </summary>
-    public class VaspClient : IDisposable
+    public class VaspClient : IVaspClient, IDisposable
     {
         private readonly IEthereumRpc _ethereumRpc;
         private readonly IEnsProvider _ensProvider;
@@ -133,17 +133,6 @@ namespace OpenVASP.CSharpClient
             _sessionsRequestsListener.StartTopicMonitoring(_beneficiaryVaspCallbacks);
         }
 
-        private async Task BeneficiarySessionCreatedAsync(BeneficiarySession session, SessionRequestMessage sessionRequestMessage)
-        {
-            _beneficiarySessionsDict.TryAdd(session.Id, session);
-
-            session.OpenChannel();
-
-            await NotifyBeneficiarySessionCreatedAsync(session);
-
-            await session.ProcessSessionRequestMessageAsync(sessionRequestMessage);
-        }
-
         public async Task CloseSessionAsync(string sessionId)
         {
             if (_originatorSessionsDict.TryRemove(sessionId, out var originatorSession))
@@ -232,6 +221,17 @@ namespace OpenVASP.CSharpClient
                 session.Dispose();
             }
             _beneficiarySessionsDict.Clear();
+        }
+
+        private async Task BeneficiarySessionCreatedAsync(BeneficiarySession session, SessionRequestMessage sessionRequestMessage)
+        {
+            _beneficiarySessionsDict.TryAdd(session.Id, session);
+
+            session.OpenChannel();
+
+            await NotifyBeneficiarySessionCreatedAsync(session);
+
+            await session.ProcessSessionRequestMessageAsync(sessionRequestMessage);
         }
 
         private async Task NotifyBeneficiarySessionCreatedAsync(BeneficiarySession session)
