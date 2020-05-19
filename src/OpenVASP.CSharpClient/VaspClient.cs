@@ -53,11 +53,22 @@ namespace OpenVASP.CSharpClient
         public event Func<SessionMessageEvent<TerminationMessage>, Task> TerminationMessageReceived;
 
         /// <summary>
-        /// VASP Code
+        /// VASP code
         /// </summary>
         public VaspCode VaspCode { get; }
 
-        public  VaspClient(
+        /// <summary>
+        /// C-tor
+        /// </summary>
+        /// <param name="handshakeKey">Handshake private key</param>
+        /// <param name="signatureHexKey">Signature private key</param>
+        /// <param name="vaspCode">Originator VASP code</param>
+        /// <param name="nodeClientEthereumRpc">Client for ETH rpc</param>
+        /// <param name="ensProvider">Ethereum address provider</param>
+        /// <param name="transportClient">Transport client</param>
+        /// <param name="signService">Signing service</param>
+        /// <param name="logFactory">Logging factory</param>
+        public VaspClient(
             ECDH_Key handshakeKey,
             string signatureHexKey,
             VaspCode vaspCode,
@@ -133,6 +144,7 @@ namespace OpenVASP.CSharpClient
             _sessionsRequestsListener.StartTopicMonitoring(_beneficiaryVaspCallbacks);
         }
 
+        /// <inheritdoc cref="IVaspClient"/>
         public async Task CloseSessionAsync(string sessionId)
         {
             if (_originatorSessionsDict.TryRemove(sessionId, out var originatorSession))
@@ -143,10 +155,11 @@ namespace OpenVASP.CSharpClient
                 throw new ArgumentException($"Session with id {sessionId} not found");
         }
 
-        public Task<BeneficiarySession> CreateBeneficiarySessionAsync(BeneficiarySessionInfo sessionInfo)
+        /// <inheritdoc cref="IVaspClient"/>
+        public Task<BeneficiarySession> CreateBeneficiarySessionAsync(BeneficiarySessionInfo beneficiarySessionInfo)
         {
             var session = new BeneficiarySession(
-                sessionInfo,
+                beneficiarySessionInfo,
                 _beneficiaryVaspCallbacks,
                 _transportClient,
                 _signService,
@@ -159,16 +172,17 @@ namespace OpenVASP.CSharpClient
             return Task.FromResult(session);
         }
 
-        public async Task<OriginatorSession> CreateOriginatorSessionAsync(VaspCode vaspCode, OriginatorSessionInfo sessionInfo = null)
+        /// <inheritdoc cref="IVaspClient"/>
+        public async Task<OriginatorSession> CreateOriginatorSessionAsync(VaspCode benefeciaryVaspCode, OriginatorSessionInfo originatorSessionInfo = null)
         {
-            if (sessionInfo == null)
+            if (originatorSessionInfo == null)
             {
-                sessionInfo = await GenerateOriginatorSessionInfoAsync(vaspCode);
+                originatorSessionInfo = await GenerateOriginatorSessionInfoAsync(benefeciaryVaspCode);
             }
 
             var session = new OriginatorSession(
-                sessionInfo,
-                vaspCode,
+                originatorSessionInfo,
+                benefeciaryVaspCode,
                 _transportClient,
                 _signService,
                 _originatorVaspCallbacks,
@@ -181,6 +195,18 @@ namespace OpenVASP.CSharpClient
             return session;
         }
 
+        /// <summary>
+        /// Static method for VaspClient creation
+        /// </summary>
+        /// <param name="vaspCode">Originator VASP code</param>
+        /// <param name="handshakePrivateKeyHex">Handshake private key</param>
+        /// <param name="signaturePrivateKeyHex">Signature private key</param>
+        /// <param name="nodeClientEthereumRpc">Client for ETH rpc</param>
+        /// <param name="ensProvider">Ethereum address provider</param>
+        /// <param name="signService">Signing service</param>
+        /// <param name="transportClient">Transport client</param>
+        /// <param name="logFactory">Logging factory</param>
+        /// <returns></returns>
         public static VaspClient Create(
             VaspCode vaspCode,
             string handshakePrivateKeyHex,
@@ -206,6 +232,7 @@ namespace OpenVASP.CSharpClient
             return vaspClient;
         }
 
+        /// <inheritdoc cref="IDisposable"/>
         public void Dispose()
         {
             _sessionsRequestsListener.StopAsync().GetAwaiter().GetResult();
