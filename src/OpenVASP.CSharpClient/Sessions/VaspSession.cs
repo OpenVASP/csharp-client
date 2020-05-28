@@ -96,27 +96,34 @@ namespace OpenVASP.CSharpClient.Sessions
 
                     do
                     {
-                        var messages = await _transportClient.GetSessionMessagesAsync(_info.MessageFilter);
-
-                        if (messages == null || messages.Count == 0)
+                        try
                         {
-                            await Task.Delay(5000, cancellationToken);
-                            continue;
-                        }
+                            var messages = await _transportClient.GetSessionMessagesAsync(_info.MessageFilter);
 
-                        foreach (var message in messages)
-                        {
-                            if (!_signService.VerifySign(
-                                message.Payload,
-                                message.Signature,
-                                _info.CounterPartyPublicSigningKey))
+                            if (messages == null || messages.Count == 0)
                             {
-                                _logger.LogWarning(
-                                    $"Couldn't verify a message with payload {message.Payload} and signature {message.Signature}");
+                                await Task.Delay(5000, cancellationToken);
                                 continue;
                             }
 
-                            _producerConsumerQueue.Enqueue(message.Message);
+                            foreach (var message in messages)
+                            {
+                                if (!_signService.VerifySign(
+                                    message.Payload,
+                                    message.Signature,
+                                    _info.CounterPartyPublicSigningKey))
+                                {
+                                    _logger.LogWarning(
+                                        $"Couldn't verify a message with payload {message.Payload} and signature {message.Signature}");
+                                    continue;
+                                }
+
+                                _producerConsumerQueue.Enqueue(message.Message);
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.LogError(e, "Failed to fetch and process messages");
                         }
                     } while (!cancellationToken.IsCancellationRequested);
                 }, cancellationToken, TaskCreationOptions.LongRunning);
