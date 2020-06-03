@@ -131,7 +131,7 @@ namespace OpenVASP.Tests.Client
                 transferReplyReceived = true;
                 transferReplySemaphore.Release();
 
-                return originatorSession.TransferDispatchAsync("hash", "sending_addr");
+                return originatorSession.TransferDispatchAsync("hash", "sending_addr", DateTime.UtcNow);
             };
             originatorClient.TransferConfirmationMessageReceived += evt =>
             {

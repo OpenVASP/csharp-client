@@ -591,7 +591,7 @@ namespace OpenVASP.Tests
             var beneficiary = new Beneficiary("Ben1", "VaaN");
 
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
-            var transaction = new Transaction("txId", "0x0000002");
+            var transaction = new Transaction("txId", "0x0000002", DateTime.UtcNow);
 
             var request = TransferDispatchMessage.Create(message, transaction);
             request.Comment = "This is test message";
@@ -652,7 +652,7 @@ namespace OpenVASP.Tests
             var beneficiary = new Beneficiary("Ben1", "VaaN");
 
             var transferReply = new TransferReply(VirtualAssetType.ETH, TransferType.BlockchainTransfer, 10000000, "0x0000001");
-            var transaction = new Transaction("txId", "0x0000002");
+            var transaction = new Transaction("txId", "0x0000002", DateTime.UtcNow);
 
             var request = TransferConfirmationMessage.Create(message);
             request.Comment = "This is test message";

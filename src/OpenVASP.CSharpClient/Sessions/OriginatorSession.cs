@@ -98,9 +98,9 @@ namespace OpenVASP.CSharpClient.Sessions
             return transferRequest;
         }
 
-        public async Task<TransferDispatchMessage> TransferDispatchAsync(string transactionHash, string sendingAddress)
+        public async Task<TransferDispatchMessage> TransferDispatchAsync(string transactionHash, string sendingAddress, DateTime dateTime)
         {
-            var transaction = new Transaction(transactionHash, sendingAddress);
+            var transaction = new Transaction(transactionHash, sendingAddress, dateTime);
 
             var transferDispatch = TransferDispatchMessage.Create(SessionInfo.Id, transaction);
 

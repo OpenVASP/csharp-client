@@ -5,10 +5,10 @@ namespace OpenVASP.Messaging.Messages.Entities
 {
     public class Transaction
     {
-        public Transaction(string transactionId, string sendingAddress)
+        public Transaction(string transactionId, string sendingAddress, DateTime dateTime)
         {
             TransactionId = transactionId;
-            DateTime = DateTime.UtcNow;
+            DateTime = dateTime;
             SendingAddress = sendingAddress;
         }
 
