@@ -340,7 +340,7 @@ namespace OpenVASP.Tests
             var handshake = new HandShakeRequest(topic, ecdhPubKey);
             var postalAddress = new PostalAddress(
                 "TestingStreet",
-                61,
+                "61",
                 "Test Address Line",
                 "410000",
                 "TownN",
@@ -386,7 +386,7 @@ namespace OpenVASP.Tests
             var handshake = new HandShakeResponse(topic);
             var postalAddress = new PostalAddress(
                 "TestingStreet",
-                61,
+                "61",
                 "Test Address Line",
                 "410000",
                 "TownN",
@@ -429,7 +429,7 @@ namespace OpenVASP.Tests
 
             var postalAddress = new PostalAddress(
                 "TestingStreet",
-                61,
+                "61",
                 "Test Address Line",
                 "410000",
                 "TownN",
@@ -490,7 +490,7 @@ namespace OpenVASP.Tests
 
             var postalAddress = new PostalAddress(
                 "TestingStreet",
-                61,
+                "61",
                 "Test Address Line",
                 "410000",
                 "TownN",
@@ -550,7 +550,7 @@ namespace OpenVASP.Tests
 
             var postalAddress = new PostalAddress(
                 "TestingStreet",
-                61,
+                "61",
                 "Test Address Line",
                 "410000",
                 "TownN",
@@ -611,7 +611,7 @@ namespace OpenVASP.Tests
 
             var postalAddress = new PostalAddress(
                 "TestingStreet",
-                61,
+                "61",
                 "Test Address Line",
                 "410000",
                 "TownN",
@@ -671,7 +671,7 @@ namespace OpenVASP.Tests
                 "1", MessageType.Termination);
             var postalAddress = new PostalAddress(
                 "TestingStreet",
-                61,
+                "61",
                 "Test Address Line",
                 "410000",
                 "TownN",

@@ -4,10 +4,10 @@ namespace OpenVASP.Messaging.Messages.Entities
 {
     public class PostalAddress
     {
-        public PostalAddress(string streetName, int buildingNumber, string addressLine, string postCode, string townName, Country country)
+        public PostalAddress(string streetName, string buildingNumber, string addressLine, string postCode, string townName, Country country)
         {
             StreetName = streetName;
-            BuildingNumber = buildingNumber.ToString(); //todo: remove int everywhere.
+            BuildingNumber = buildingNumber;
             AddressLine = addressLine;
             PostCode = postCode;
             TownName = townName;
