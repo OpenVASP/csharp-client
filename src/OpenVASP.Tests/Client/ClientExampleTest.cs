@@ -78,7 +78,7 @@ namespace OpenVASP.Tests.Client
                 originatorVaan,
                 new PostalAddress(
                     "StreetX",
-                    44,
+                    "44",
                     "AddressLineX",
                     "510051",
                     "TownX",
@@ -198,7 +198,7 @@ namespace OpenVASP.Tests.Client
             originatorSession = await originatorClient.CreateOriginatorSessionAsync(beneficiaryVaan.VaspCode, originatorSession.SessionInfo);
 
             await Task.WhenAny(
-                Task.Delay(TimeSpan.FromMinutes(2)),
+                Task.Delay(TimeSpan.FromMinutes(5)),
                 Task.WhenAll(
                     sessionRequestSemaphore.WaitAsync(),
                     sessionReplySemaphore.WaitAsync(),

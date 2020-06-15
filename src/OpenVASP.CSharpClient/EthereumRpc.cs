@@ -61,7 +61,7 @@ namespace OpenVASP.CSharpClient
                 HandshakeKey = handshakeKey,
                 Address = new PostalAddress(
                     postalAddress.StreetName,
-                    int.Parse(postalAddress.BuildingNumber),
+                    postalAddress.BuildingNumber,
                     postalAddress.AddressLine,
                     postalAddress.PostCode,
                     postalAddress.Town,
