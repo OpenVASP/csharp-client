@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using OpenVASP.CSharpClient.Internals.Messages;
-using OpenVASP.Messaging.Messages.Entities;
+using OpenVASP.CSharpClient.Internals.Models;
 
 namespace OpenVASP.CSharpClient.Internals.Interfaces
 {

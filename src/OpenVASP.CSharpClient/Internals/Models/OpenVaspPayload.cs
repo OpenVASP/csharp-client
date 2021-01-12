@@ -2,7 +2,6 @@ using System;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using OpenVASP.Messaging;
 
 namespace OpenVASP.CSharpClient.Internals
 {

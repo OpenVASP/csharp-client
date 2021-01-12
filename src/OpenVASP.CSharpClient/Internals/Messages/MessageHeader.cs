@@ -1,6 +1,5 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-using OpenVASP.Messaging.Messages;
 
 namespace OpenVASP.CSharpClient.Internals.Messages
 {

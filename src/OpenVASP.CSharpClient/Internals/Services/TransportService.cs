@@ -11,8 +11,8 @@ using OpenVASP.CSharpClient.Internals.Cryptography;
 using OpenVASP.CSharpClient.Internals.Events;
 using OpenVASP.CSharpClient.Internals.Interfaces;
 using OpenVASP.CSharpClient.Internals.Messages;
+using OpenVASP.CSharpClient.Internals.Models;
 using OpenVASP.CSharpClient.Internals.Utils;
-using OpenVASP.Messaging.Messages.Entities;
 
 namespace OpenVASP.CSharpClient.Internals.Services
 {

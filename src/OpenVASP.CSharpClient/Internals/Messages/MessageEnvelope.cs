@@ -1,4 +1,4 @@
-﻿using OpenVASP.Messaging.Messages.Entities;
+﻿using OpenVASP.CSharpClient.Internals.Models;
 
 namespace OpenVASP.CSharpClient.Internals.Messages
 {

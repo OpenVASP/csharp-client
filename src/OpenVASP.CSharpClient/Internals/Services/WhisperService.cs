@@ -8,7 +8,7 @@ using Nethereum.RPC.Shh.DTOs;
 using Nethereum.Web3;
 using OpenVASP.CSharpClient.Internals.Interfaces;
 using OpenVASP.CSharpClient.Internals.Messages;
-using OpenVASP.Messaging.Messages.Entities;
+using OpenVASP.CSharpClient.Internals.Models;
 
 namespace OpenVASP.CSharpClient.Internals.Services
 {

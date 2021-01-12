@@ -5,8 +5,8 @@ using Moq;
 using OpenVASP.CSharpClient.Internals;
 using OpenVASP.CSharpClient.Internals.Interfaces;
 using OpenVASP.CSharpClient.Internals.Messages;
+using OpenVASP.CSharpClient.Internals.Models;
 using OpenVASP.CSharpClient.Internals.Services;
-using OpenVASP.Messaging.Messages.Entities;
 using Xunit;
 
 namespace OpenVASP.Tests

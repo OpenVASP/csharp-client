@@ -83,8 +83,7 @@ namespace OpenVASP.CSharpClient.Internals.Cryptography
 
             throw new NullReferenceException("The key pair provided is not a valid ECDH keypair.");
         }
-
-        // This returns a
+        
         private static string GetPrivateKey(AsymmetricCipherKeyPair keyPair)
         {
             if (keyPair.Private is ECPrivateKeyParameters dhPrivateKeyParameters)
