@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using OpenVASP.CSharpClient;
+using OpenVASP.CSharpClient.Applications.TravelRule.Messages;
+using OpenVASP.CSharpClient.Applications.TravelRule.Models;
 using OpenVASP.CSharpClient.Internals.Messages;
 using Xunit;
 
@@ -58,12 +60,16 @@ namespace OpenVASP.Tests
             var sessionReplySemaphore = new SemaphoreSlim(0, 1);
             var transferRequestSemaphore = new SemaphoreSlim(0, 1);
             var transferReplySemaphore = new SemaphoreSlim(0, 1);
+            var transferDispatchSemaphore = new SemaphoreSlim(0, 1);
+            var transferConfirmSemaphore = new SemaphoreSlim(0, 1);
             var terminationSemaphore = new SemaphoreSlim(0, 1);
 
             var sessionRequestReceived = false;
             var sessionReplyReceived = false;
             var transferRequestReceived = false;
             var transferReplyReceived = false;
+            var transferDispatchReceived = false;
+            var transferConfirmReceived = false;
             var terminationReceived = false;
 
             string session1 = null;
@@ -73,14 +79,49 @@ namespace OpenVASP.Tests
                 sessionReplyReceived = true;
                 sessionReplySemaphore.Release();
 
-                await vaspClient1.SendApplicationMessageAsync(session1, MessageType.TransferRequest, JObject.Parse("{}"));
+                var transferRequest = new TransferRequest
+                {
+                    Transfer = new Transfer
+                    {
+                        Amount = 10
+                    }
+                };
+                
+                await vaspClient1.SendApplicationMessageAsync(session1, MessageType.TransferRequest, JObject.FromObject(transferRequest));
             };
             vaspClient1.ApplicationMessageReceivedEvent += async received =>
             {
-                transferReplyReceived = true;
-                transferReplySemaphore.Release();
+                if (received.Type == MessageType.TransferReply)
+                {
+                    transferReplyReceived = true;
+                    transferReplySemaphore.Release();
 
-                await vaspClient1.SessionTerminateAsync(session1);
+                    var transferReply = received.Body.ToObject<TransferReply>();
+                    
+                    Assert.Equal(TransferReplyMessageCode.TransferAccepted, transferReply.Code);
+                    
+                    var transferDispatch = new TransferDispatch
+                    {
+                        Transfer = new Transaction
+                        {
+                            TransactionHash = "txhash"
+                        }
+                    };
+                    
+                    await vaspClient1.SendApplicationMessageAsync(session1, MessageType.TransferDispatch, JObject.FromObject(transferDispatch));
+                }
+
+                if (received.Type == MessageType.TransferConfirmation)
+                {
+                    transferConfirmReceived = true;
+                    transferConfirmSemaphore.Release();
+
+                    var transferConfirm = received.Body.ToObject<TransferConfirm>();
+                    
+                    Assert.Equal(TransactionConfirmCode.TransferConfirmed, transferConfirm.Code);
+                    
+                    await vaspClient1.SessionTerminateAsync(session1);
+                }
             };
 
             string session2 = null;
@@ -103,10 +144,41 @@ namespace OpenVASP.Tests
             };
             vaspClient2.ApplicationMessageReceivedEvent += async received =>
             {
-                transferRequestReceived = true;
-                transferRequestSemaphore.Release();
+                if (received.Type == MessageType.TransferRequest)
+                {
+                    transferRequestReceived = true;
+                    transferRequestSemaphore.Release();
+
+                    var transferRequest = received.Body.ToObject<TransferRequest>();
+                    
+                    Assert.Equal(10, transferRequest.Transfer.Amount);
+
+                    var transferReply = new TransferReply
+                    {
+                        Code = TransferReplyMessageCode.TransferAccepted
+                    };
+                    
+                    await vaspClient2.SendApplicationMessageAsync(session2, MessageType.TransferReply, JObject.FromObject(transferReply));
+                }
+
+                if (received.Type == MessageType.TransferDispatch)
+                {
+                    transferDispatchReceived = true;
+                    transferDispatchSemaphore.Release();
+
+                    var transferDispatch = received.Body.ToObject<TransferDispatch>();
+                    
+                    Assert.Equal("txhash", transferDispatch.Transfer.TransactionHash);
+
+                    var transferConfirm = new TransferConfirm
+                    {
+                        Code = TransactionConfirmCode.TransferConfirmed
+                    };
+
+                    await vaspClient2.SendApplicationMessageAsync(session2, MessageType.TransferConfirmation,
+                        JObject.FromObject(transferConfirm));
+                }
                 
-                await vaspClient2.SendApplicationMessageAsync(session2, MessageType.TransferReply, JObject.Parse("{}"));
             };
 
             session1 = await vaspClient1.CreateSessionAsync(_settings2.VaspId);
@@ -118,16 +190,16 @@ namespace OpenVASP.Tests
                     sessionReplySemaphore.WaitAsync(),
                     transferRequestSemaphore.WaitAsync(),
                     transferReplySemaphore.WaitAsync(),
+                    transferDispatchSemaphore.WaitAsync(),
+                    transferConfirmSemaphore.WaitAsync(),
                     terminationSemaphore.WaitAsync()));
 
             Assert.True(sessionRequestReceived, "Session request message was not delivered");
             Assert.True(sessionReplyReceived, "Session reply message was not delivered");
             Assert.True(transferRequestReceived, "Transfer request message was not delivered");
             Assert.True(transferReplyReceived, "Transfer reply message was not delivered");
-            /*
             Assert.True(transferDispatchReceived, "Transfer dispatch message was not delivered");
             Assert.True(transferConfirmReceived, "Transfer confirm message was not delivered");
-            */
             Assert.True(terminationReceived, "Termination message was not delivered");
         }
     }

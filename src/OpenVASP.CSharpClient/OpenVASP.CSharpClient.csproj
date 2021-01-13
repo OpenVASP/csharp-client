@@ -14,9 +14,4 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Applications\TravelRule\DataTypes" />
-    <Folder Include="Applications\TravelRule\Messages" />
-  </ItemGroup>
-
 </Project>
