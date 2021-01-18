@@ -13,7 +13,7 @@ namespace OpenVASP.CSharpClient.Internals.Interfaces
             string ecdhPk,
             JObject messageBody,
             string aesKeyHex);
-        (Message, string) Deserialize(
+        (Message, string, string) Deserialize(
             string payload,
             string aesKeyHex,
             string signingKey);

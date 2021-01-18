@@ -138,79 +138,89 @@ namespace OpenVASP.CSharpClient.Internals.Services
 
         private async Task TransportClientOnTransportMessageReceived(TransportMessageEvent evt)
         {
-            Message message;
-            string messagePlaintext;
+            try
+            {
+                Message message;
+                string messagePlaintext;
+                string sig;
 
-            var session = _sessions.Values.SingleOrDefault(x => x.ConnectionId == evt.ConnectionId);
+                var session = _sessions.Values.SingleOrDefault(x => x.ConnectionId == evt.ConnectionId);
 
-            if (session == null)
-            {
-                var messageKey = await _vaspCodesService.GetMessageKeyAsync(evt.SenderVaspId.Substring(4));
-                var aesMessageKey = ECDH_Key.ImportKey(_privateMessageKey).GenerateSharedSecretHex(messageKey);
-                (message, messagePlaintext) =
-                    _messageFormatterService.Deserialize(evt.Payload, aesMessageKey, evt.SigningKey);
-            }
-            else if (string.IsNullOrWhiteSpace(session.EstablishedAesMessageKey))
-            {
-                (message, messagePlaintext) =
-                    _messageFormatterService.Deserialize(evt.Payload, session.TempAesMessageKey, evt.SigningKey);
-            }
-            else
-            {
-                try
+                if (session == null)
                 {
-                    (message, messagePlaintext) =
-                        _messageFormatterService.Deserialize(evt.Payload, session.EstablishedAesMessageKey, evt.SigningKey);
+                    var messageKey = await _vaspCodesService.GetMessageKeyAsync(evt.SenderVaspId.Substring(4));
+                    var aesMessageKey = ECDH_Key.ImportKey(_privateMessageKey).GenerateSharedSecretHex(messageKey);
+                    (message, messagePlaintext, sig) =
+                        _messageFormatterService.Deserialize(evt.Payload, aesMessageKey, evt.SigningKey);
                 }
-                catch (InvalidCipherTextException)
+                else if (string.IsNullOrWhiteSpace(session.EstablishedAesMessageKey))
                 {
-                    (message, messagePlaintext) =
+                    (message, messagePlaintext, sig) =
                         _messageFormatterService.Deserialize(evt.Payload, session.TempAesMessageKey, evt.SigningKey);
                 }
-            }
-
-            switch (evt.Instruction)
-            {
-                case Instruction.Invite:
-                    await HandleSessionRequestAsync(
-                        evt.ConnectionId,
-                        message.Content.Header.SessionId,
-                        evt.SenderVaspId,
-                        message.Content.Header.EcdhPk);
-                    break;
-                case Instruction.Accept:
-                case Instruction.Deny:
-                    var messageCode = message.Content.RawBody.ToObject<SessionReply>().Code;
-                    await HandleSessionReplyAsync(
-                        message.Content.Header.SessionId,
-                        messageCode,
-                        message.Content.Header.EcdhPk);
-                    break;
-                case Instruction.Close:
-                    switch (message.Content.Header.MessageType)
+                else
+                {
+                    try
                     {
-                        case MessageType.Abort:
-                            await HandleSessionAbortAsync(
-                                message.Content.Header.SessionId,
-                                message.Content.RawBody.ToObject<SessionAbort>().Code);
-                            break;
-                        case MessageType.Termination:
-                            await HandleTerminationAsync(message.Content.Header.SessionId);
-                            break;
+                        (message, messagePlaintext, sig) =
+                            _messageFormatterService.Deserialize(evt.Payload, session.EstablishedAesMessageKey,
+                                evt.SigningKey);
                     }
-
-                    break;
-                case Instruction.Update:
-                    await TriggerAsyncEvent(ApplicationMessageReceived, new ApplicationMessageReceivedEvent
+                    catch (InvalidCipherTextException)
                     {
-                        Type = message.Content.Header.MessageType,
-                        SessionId = session.Id,
-                        Payload = message.Content.RawBody
-                    });
-                    break;
-                default:
-                    throw new NotSupportedException(
-                        $"Instruction type {Enum.GetName(typeof(Instruction), evt.Instruction)} is not supported");
+                        (message, messagePlaintext, sig) =
+                            _messageFormatterService.Deserialize(evt.Payload, session.TempAesMessageKey,
+                                evt.SigningKey);
+                    }
+                }
+
+                switch (evt.Instruction)
+                {
+                    case Instruction.Invite:
+                        await HandleSessionRequestAsync(
+                            evt.ConnectionId,
+                            message.Content.Header.SessionId,
+                            evt.SenderVaspId,
+                            message.Content.Header.EcdhPk);
+                        break;
+                    case Instruction.Accept:
+                    case Instruction.Deny:
+                        var messageCode = message.Content.RawBody.ToObject<SessionReply>().Code;
+                        await HandleSessionReplyAsync(
+                            message.Content.Header.SessionId,
+                            messageCode,
+                            message.Content.Header.EcdhPk);
+                        break;
+                    case Instruction.Close:
+                        switch (message.Content.Header.MessageType)
+                        {
+                            case MessageType.Abort:
+                                await HandleSessionAbortAsync(
+                                    message.Content.Header.SessionId,
+                                    message.Content.RawBody.ToObject<SessionAbort>().Code);
+                                break;
+                            case MessageType.Termination:
+                                await HandleTerminationAsync(message.Content.Header.SessionId);
+                                break;
+                        }
+
+                        break;
+                    case Instruction.Update:
+                        await TriggerAsyncEvent(ApplicationMessageReceived, new ApplicationMessageReceivedEvent
+                        {
+                            Type = message.Content.Header.MessageType,
+                            SessionId = session.Id,
+                            Payload = message.Content.RawBody
+                        });
+                        break;
+                    default:
+                        throw new NotSupportedException(
+                            $"Instruction type {Enum.GetName(typeof(Instruction), evt.Instruction)} is not supported");
+                }
+            }
+            catch (Exception e)
+            {
+                throw e;
             }
         }
 

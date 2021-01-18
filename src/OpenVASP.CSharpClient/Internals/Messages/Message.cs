@@ -7,9 +7,6 @@ namespace OpenVASP.CSharpClient.Internals.Messages
         [JsonProperty("content")]
         public MessageContent Content { get; set; }
 
-        [JsonProperty("sig")]
-        public string Signature { get; set; }
-
         public Message()
         {
         }

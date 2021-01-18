@@ -50,7 +50,7 @@ namespace OpenVASP.CSharpClient.Internals.Services
             
             _outboundEnvelopeService.OutboundEnvelopeReachedMaxResends += OnOutboundEnvelopeReachedMaxResends;
             
-            _timer = new Timer(5*1000);
+            _timer = new Timer(5*10);
             _timer.Elapsed += async delegate { await TimerOnElapsed(); };
             
             StartAsync().GetAwaiter().GetResult();

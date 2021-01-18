@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Newtonsoft.Json;
@@ -35,47 +36,50 @@ namespace OpenVASP.CSharpClient.Internals.Services
             JObject messageBody,
             string aesKeyHex)
         {
-            var messageContent = new MessageContent
+            var message = new Message
             {
-                Header = new MessageHeader(
-                    _vaspId,
-                    targetVaspId,
-                    Guid.NewGuid().ToString("N"),
-                    sessionId,
-                    messageType,
-                    ecdhPk),
-                RawBody = messageBody,
+                Content = new MessageContent
+                {
+                    Header = new MessageHeader(
+                        _vaspId,
+                        targetVaspId,
+                        Guid.NewGuid().ToString("N"),
+                        sessionId,
+                        messageType,
+                        ecdhPk),
+                    RawBody = messageBody,
+                }
             };
-            var contentJson = JsonConvert.SerializeObject(messageContent, settings: JsonSerializerSettings);
-            var message = new Message(messageContent)
-            {
-                Signature = await _signService.SignPayloadAsync(contentJson)
-            };
+            
+            var contentJson = JsonConvert.SerializeObject(message, settings: JsonSerializerSettings);
 
-            var json = JsonConvert.SerializeObject(message, settings: JsonSerializerSettings);
+            var sig = await _signService.SignPayloadAsync(contentJson);
 
-            var enryptionBytes = aesKeyHex.EnsureHexPrefix().HexToByteArray();
-            var encrypted = json.ToHexUTF8().HexToByteArray().EncryptAesGcm(enryptionBytes).ToHex();
+            var encryptionBytes = aesKeyHex.EnsureHexPrefix().HexToByteArray();
+            var encrypted = sig.HexToByteArray().Concat(contentJson.ToHexUTF8().HexToByteArray()).ToArray().EncryptAesGcm(encryptionBytes).ToHex();
 
-            return (encrypted, json);
+            return (encrypted, contentJson);
         }
 
-        public (Message, string) Deserialize(
+        public (Message, string, string) Deserialize(
             string payload,
             string aesKeyHex,
             string signingKey)
         {
             var decryptionBytes = aesKeyHex.EnsureHexPrefix().HexToByteArray();
-            var decryptedJson = payload.HexToByteArray().DecryptAesGcm(decryptionBytes).ToHex().HexToUTF8String();
+            var decryptedBytes = payload.HexToByteArray().DecryptAesGcm(decryptionBytes);
 
-            var message = JsonConvert.DeserializeObject<Message>(decryptedJson);
+            var signature = decryptedBytes.Take(65).ToArray();
+            var body = decryptedBytes.Skip(65).ToArray();
 
-            var contentJson = JsonConvert.SerializeObject(message.Content, settings: JsonSerializerSettings);
+            var bodyString = body.ToHex().HexToUTF8String();
+            var message = JsonConvert.DeserializeObject<Message>(bodyString);
+            var sig = signature.ToHex();
 
-            if (!_signService.VerifySign(contentJson, message.Signature, signingKey))
+            if (!_signService.VerifySign(bodyString, sig, signingKey))
                 throw new InvalidOperationException($"Signature is not valid for message {JsonConvert.SerializeObject(message.Content.Header, settings: JsonSerializerSettings)}");
 
-            return (message, decryptedJson);
+            return (message, bodyString, sig);
         }
     }
 }
