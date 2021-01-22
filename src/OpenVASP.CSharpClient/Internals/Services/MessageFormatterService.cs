@@ -36,22 +36,19 @@ namespace OpenVASP.CSharpClient.Internals.Services
             JObject messageBody,
             string aesKeyHex)
         {
-            var message = new Message
+            var content = new MessageContent
             {
-                Content = new MessageContent
-                {
-                    Header = new MessageHeader(
-                        _vaspId,
-                        targetVaspId,
-                        Guid.NewGuid().ToString("N"),
-                        sessionId,
-                        messageType,
-                        ecdhPk),
-                    RawBody = messageBody,
-                }
+                Header = new MessageHeader(
+                    _vaspId,
+                    targetVaspId,
+                    Guid.NewGuid().ToString("N"),
+                    sessionId,
+                    messageType,
+                    ecdhPk),
+                RawBody = messageBody,
             };
             
-            var contentJson = JsonConvert.SerializeObject(message, settings: JsonSerializerSettings);
+            var contentJson = JsonConvert.SerializeObject(content, settings: JsonSerializerSettings);
 
             var sig = await _signService.SignPayloadAsync(contentJson);
 
@@ -61,7 +58,7 @@ namespace OpenVASP.CSharpClient.Internals.Services
             return (encrypted, contentJson);
         }
 
-        public (Message, string, string) Deserialize(
+        public (MessageContent, string, string) Deserialize(
             string payload,
             string aesKeyHex,
             string signingKey)
@@ -73,11 +70,11 @@ namespace OpenVASP.CSharpClient.Internals.Services
             var body = decryptedBytes.Skip(65).ToArray();
 
             var bodyString = body.ToHex().HexToUTF8String();
-            var message = JsonConvert.DeserializeObject<Message>(bodyString);
+            var message = JsonConvert.DeserializeObject<MessageContent>(bodyString);
             var sig = signature.ToHex();
 
             if (!_signService.VerifySign(bodyString, sig, signingKey))
-                throw new InvalidOperationException($"Signature is not valid for message {JsonConvert.SerializeObject(message.Content.Header, settings: JsonSerializerSettings)}");
+                throw new InvalidOperationException($"Signature is not valid for message {JsonConvert.SerializeObject(message.Header, settings: JsonSerializerSettings)}");
 
             return (message, bodyString, sig);
         }

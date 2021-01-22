@@ -138,9 +138,7 @@ namespace OpenVASP.CSharpClient.Internals.Services
 
         private async Task TransportClientOnTransportMessageReceived(TransportMessageEvent evt)
         {
-            try
-            {
-                Message message;
+                MessageContent messageContent;
                 string messagePlaintext;
                 string sig;
 
@@ -150,25 +148,25 @@ namespace OpenVASP.CSharpClient.Internals.Services
                 {
                     var messageKey = await _vaspCodesService.GetMessageKeyAsync(evt.SenderVaspId.Substring(4));
                     var aesMessageKey = ECDH_Key.ImportKey(_privateMessageKey).GenerateSharedSecretHex(messageKey);
-                    (message, messagePlaintext, sig) =
+                    (messageContent, messagePlaintext, sig) =
                         _messageFormatterService.Deserialize(evt.Payload, aesMessageKey, evt.SigningKey);
                 }
                 else if (string.IsNullOrWhiteSpace(session.EstablishedAesMessageKey))
                 {
-                    (message, messagePlaintext, sig) =
+                    (messageContent, messagePlaintext, sig) =
                         _messageFormatterService.Deserialize(evt.Payload, session.TempAesMessageKey, evt.SigningKey);
                 }
                 else
                 {
                     try
                     {
-                        (message, messagePlaintext, sig) =
+                        (messageContent, messagePlaintext, sig) =
                             _messageFormatterService.Deserialize(evt.Payload, session.EstablishedAesMessageKey,
                                 evt.SigningKey);
                     }
                     catch (InvalidCipherTextException)
                     {
-                        (message, messagePlaintext, sig) =
+                        (messageContent, messagePlaintext, sig) =
                             _messageFormatterService.Deserialize(evt.Payload, session.TempAesMessageKey,
                                 evt.SigningKey);
                     }
@@ -179,28 +177,28 @@ namespace OpenVASP.CSharpClient.Internals.Services
                     case Instruction.Invite:
                         await HandleSessionRequestAsync(
                             evt.ConnectionId,
-                            message.Content.Header.SessionId,
+                            messageContent.Header.SessionId,
                             evt.SenderVaspId,
-                            message.Content.Header.EcdhPk);
+                            messageContent.Header.EcdhPk);
                         break;
                     case Instruction.Accept:
                     case Instruction.Deny:
-                        var messageCode = message.Content.RawBody.ToObject<SessionReply>().Code;
+                        var messageCode = messageContent.RawBody.ToObject<SessionReply>().Code;
                         await HandleSessionReplyAsync(
-                            message.Content.Header.SessionId,
+                            messageContent.Header.SessionId,
                             messageCode,
-                            message.Content.Header.EcdhPk);
+                            messageContent.Header.EcdhPk);
                         break;
                     case Instruction.Close:
-                        switch (message.Content.Header.MessageType)
+                        switch (messageContent.Header.MessageType)
                         {
                             case MessageType.Abort:
                                 await HandleSessionAbortAsync(
-                                    message.Content.Header.SessionId,
-                                    message.Content.RawBody.ToObject<SessionAbort>().Code);
+                                    messageContent.Header.SessionId,
+                                    messageContent.RawBody.ToObject<SessionAbort>().Code);
                                 break;
                             case MessageType.Termination:
-                                await HandleTerminationAsync(message.Content.Header.SessionId);
+                                await HandleTerminationAsync(messageContent.Header.SessionId);
                                 break;
                         }
 
@@ -208,20 +206,15 @@ namespace OpenVASP.CSharpClient.Internals.Services
                     case Instruction.Update:
                         await TriggerAsyncEvent(ApplicationMessageReceived, new ApplicationMessageReceivedEvent
                         {
-                            Type = message.Content.Header.MessageType,
+                            Type = messageContent.Header.MessageType,
                             SessionId = session.Id,
-                            Payload = message.Content.RawBody
+                            Payload = messageContent.RawBody
                         });
                         break;
                     default:
                         throw new NotSupportedException(
                             $"Instruction type {Enum.GetName(typeof(Instruction), evt.Instruction)} is not supported");
                 }
-            }
-            catch (Exception e)
-            {
-                throw e;
-            }
         }
 
         private async Task HandleSessionRequestAsync(
